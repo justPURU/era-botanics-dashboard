@@ -1,0 +1,2935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Era Botanics — Order Intelligence Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-alt: #f9fafb;
+    --border: #e2e5ea;
+    --border-light: #eef0f3;
+    --text-primary: #0d1117;
+    --text-secondary: #5a6275;
+    --text-muted: #9aa3b2;
+    --accent-blue: #1a56db;
+    --accent-blue-light: #e8f0fd;
+    --accent-blue-mid: #4f83e3;
+    --blue-1: #0f3580;
+    --blue-2: #1a56db;
+    --blue-3: #4f83e3;
+    --blue-4: #93b8f0;
+    --blue-5: #ccddf9;
+    --blue-6: #e8f0fd;
+    --rto-color: #d73a3a;
+    --rto-light: #fdf0f0;
+    --delivered-color: #1a56db;
+    --gray-1: #1c2130;
+    --gray-2: #374151;
+    --gray-3: #6b7280;
+    --gray-4: #9ca3af;
+    --gray-5: #d1d5db;
+    --gray-6: #f3f4f6;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  /* ---- TOP NAV ---- */
+  .topbar {
+    background: var(--gray-1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    height: 54px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 10px; }
+  .brand-dot { width: 8px; height: 8px; background: var(--blue-3); border-radius: 50%; }
+  .brand-name { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+  .brand-sub { font-size: 11px; color: rgba(255,255,255,0.4); margin-left: 4px; font-weight: 300; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .upload-btn {
+    background: var(--accent-blue); color: #fff; border: none;
+    padding: 7px 16px; border-radius: var(--radius-sm); font-size: 12.5px;
+    font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;
+    font-family: 'DM Sans', sans-serif;
+    transition: background 0.2s;
+  }
+  .upload-btn:hover { background: #1446c0; }
+  .upload-status { font-size: 11.5px; color: rgba(255,255,255,0.5); }
+  #file-input { display: none; }
+
+  /* ---- LAYOUT ---- */
+  .layout { display: flex; min-height: calc(100vh - 54px); }
+
+  /* ---- SIDEBAR ---- */
+  .sidebar {
+    width: 196px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 54px;
+    height: calc(100vh - 54px);
+    overflow-y: auto;
+  }
+  .sidebar-section { margin-bottom: 4px; }
+  .sidebar-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--text-muted); text-transform: uppercase;
+    padding: 8px 18px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 18px; cursor: pointer; font-size: 13px;
+    color: var(--text-secondary); border-left: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .nav-item:hover { background: var(--gray-6); color: var(--text-primary); }
+  .nav-item.active {
+    background: var(--accent-blue-light);
+    color: var(--accent-blue);
+    border-left-color: var(--accent-blue);
+    font-weight: 500;
+  }
+  .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+
+  /* ---- MAIN CONTENT ---- */
+  .main { flex: 1; overflow-y: auto; }
+  .page { display: none; padding: 24px 28px; }
+  .page.active { display: block; }
+
+  .page-header { margin-bottom: 20px; }
+  .page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+  .page-sub { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+
+  /* ---- CARDS ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+  }
+  .card-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--text-secondary);
+    margin-bottom: 14px;
+  }
+
+  /* ---- KPI GRID ---- */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+    box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+  }
+  .kpi-card::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 3px; background: var(--accent-blue);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .kpi-card.rto::after { background: var(--rto-color); }
+  .kpi-card.green::after { background: #16a34a; }
+  .kpi-card.gray::after { background: var(--gray-4); }
+  .kpi-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+  .kpi-value { font-size: 26px; font-weight: 600; color: var(--text-primary); margin: 6px 0 4px; font-family: 'DM Mono', monospace; letter-spacing: -0.02em; }
+  .kpi-sub { font-size: 11.5px; color: var(--text-secondary); }
+  .kpi-badge { 
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 500;
+    margin-top: 4px;
+  }
+  .kpi-badge.up { background: #dcfce7; color: #16a34a; }
+  .kpi-badge.down { background: #fee2e2; color: #dc2626; }
+
+  /* ---- GRIDS ---- */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .span-2 { grid-column: span 2; }
+  .span-3 { grid-column: span 3; }
+
+  /* ---- CHART WRAPPER ---- */
+  .chart-wrap { position: relative; }
+  .chart-wrap canvas { max-height: 280px; }
+  .chart-wrap.tall canvas { max-height: 340px; }
+  .chart-wrap.short canvas { max-height: 200px; }
+
+  /* ---- TABLE ---- */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .data-table th {
+    text-align: left; padding: 8px 10px; font-size: 11px;
+    font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text-muted); border-bottom: 1px solid var(--border);
+    background: var(--surface-alt);
+    position: sticky; top: 0;
+  }
+  .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-light); }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--gray-6); }
+  .table-scroll { max-height: 320px; overflow-y: auto; }
+  .rate-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; font-family: 'DM Mono', monospace;
+  }
+  .rate-high { background: #fee2e2; color: #dc2626; }
+  .rate-mid { background: #fff7ed; color: #c2410c; }
+  .rate-low { background: #dcfce7; color: #16a34a; }
+  .rate-ok { background: #eff6ff; color: #1d4ed8; }
+
+  /* ---- BAR INLINE ---- */
+  .bar-row { display: flex; align-items: center; gap: 8px; }
+  .bar-track { flex: 1; height: 6px; background: var(--gray-5); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; background: var(--accent-blue); transition: width 0.3s; }
+  .bar-fill.rto { background: var(--rto-color); }
+  .bar-val { font-size: 11.5px; font-weight: 500; min-width: 40px; text-align: right; font-family: 'DM Mono', monospace; }
+
+  /* ---- CONTROLS ---- */
+  .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .ctrl-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+  select, .select {
+    appearance: none; background: var(--surface); border: 1px solid var(--border);
+    padding: 6px 28px 6px 10px; border-radius: var(--radius-sm);
+    font-size: 12.5px; color: var(--text-primary); cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%236b7280' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    min-width: 180px;
+  }
+  select:focus { outline: none; border-color: var(--accent-blue); }
+
+  .tab-row { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 8px 14px; font-size: 12.5px; cursor: pointer;
+    color: var(--text-secondary); border-bottom: 2px solid transparent;
+    margin-bottom: -1px; font-weight: 500; transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+  /* ---- STATUS BADGES ---- */
+  .status { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; }
+  .status-delivered { background: #dbeafe; color: #1d4ed8; }
+  .status-rto { background: #fee2e2; color: #dc2626; }
+  .status-transit { background: #fef3c7; color: #92400e; }
+  .status-process { background: #f3f4f6; color: #374151; }
+  .status-other { background: #f9fafb; color: #9ca3af; }
+
+  /* ---- MINI SCOREBOARD ---- */
+  .mini-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .mini-kpi { background: var(--surface-alt); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .mini-kpi-label { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .mini-kpi-val { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; margin-top: 3px; }
+  .mini-kpi-val.blue { color: var(--accent-blue); }
+  .mini-kpi-val.red { color: var(--rto-color); }
+  .mini-kpi-val.dark { color: var(--text-primary); }
+
+  /* ---- DONUT LEGEND ---- */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ---- RANK LIST ---- */
+  .rank-list { }
+  .rank-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { font-size: 11px; color: var(--text-muted); font-weight: 600; width: 18px; text-align: right; font-family: 'DM Mono', monospace; }
+  .rank-name { flex: 1; font-size: 12.5px; color: var(--text-primary); }
+  .rank-meta { font-size: 11px; color: var(--text-secondary); text-align: right; white-space: nowrap; }
+
+  /* ---- SKU PAGE SPECIFIC ---- */
+  .sku-detail-card { background: var(--accent-blue-light); border: 1px solid #c3d8f9; border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
+  .sku-name-big { font-size: 15px; font-weight: 600; color: var(--blue-1); margin-bottom: 4px; }
+  .sku-code { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--accent-blue); }
+
+  /* ---- MONTH CHIP ---- */
+  .month-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .month-chip { padding: 4px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 500; background: var(--gray-6); color: var(--text-secondary); border: 1px solid var(--border); cursor: pointer; }
+  .month-chip.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+
+  /* ---- SECTION DIVIDER ---- */
+  .section-div { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ---- SCROLLBAR ---- */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--gray-5); border-radius: 4px; }
+
+
+  /* ---- HEATMAP ---- */
+  .heatmap-container {
+    overflow-x: auto; overflow-y: auto;
+    max-height: 520px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    position: relative;
+  }
+  .heatmap-table {
+    border-collapse: separate; border-spacing: 0;
+    font-size: 11px; white-space: nowrap;
+  }
+  .heatmap-table th {
+    position: sticky; top: 0; z-index: 3;
+    background: var(--gray-1); color: #fff;
+    padding: 6px 5px; font-size: 10px; font-weight: 500;
+    text-align: center; letter-spacing: 0.02em;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    min-width: 34px;
+  }
+  .heatmap-table th.sku-col {
+    text-align: left; min-width: 200px; max-width: 200px;
+    padding-left: 10px; position: sticky; left: 0; z-index: 4;
+    border-right: 2px solid rgba(255,255,255,0.2);
+  }
+  .heatmap-table td.sku-name-cell {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--surface);
+    padding: 4px 8px 4px 10px;
+    border-right: 2px solid var(--border);
+    border-bottom: 1px solid var(--border-light);
+    font-size: 11px; font-weight: 500;
+    min-width: 200px; max-width: 200px;
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .heatmap-table td.sku-name-cell:hover { background: var(--gray-6); }
+  .heatmap-table td.hm-cell {
+    padding: 0; text-align: center;
+    border-right: 1px solid rgba(255,255,255,0.3);
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    cursor: default; min-width: 34px; height: 26px;
+    font-family: 'DM Mono', monospace; font-size: 9.5px;
+    font-weight: 500; color: rgba(255,255,255,0.9);
+    transition: outline 0.1s;
+  }
+  .heatmap-table td.hm-cell:hover { outline: 2px solid #fff; outline-offset: -2px; z-index: 1; position: relative; }
+  .heatmap-table td.hm-empty {
+    background: #f8f9fa; min-width: 34px; height: 26px;
+    border-right: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .hm-legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .hm-legend-label { font-size: 11px; color: var(--text-secondary); }
+  .hm-legend-bar {
+    height: 12px; width: 180px; border-radius: 3px;
+    background: linear-gradient(to right, #1a56db, #7bc47f, #f59e0b, #d73a3a);
+  }
+  .hm-legend-ticks { display: flex; justify-content: space-between; width: 180px; font-size: 10px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+  .hm-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .hm-min-orders { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .hm-min-orders input { width: 60px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-family: 'DM Sans', sans-serif; }
+
+  /* ---- MONTH FILTER BAR ---- */
+  .month-filter-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px;
+    margin-bottom: 18px; box-shadow: var(--shadow-sm);
+  }
+  .mf-label { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  .mf-sep { width: 1px; height: 18px; background: var(--border); }
+  .mf-btn {
+    padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 1.5px solid var(--border); background: transparent;
+    color: var(--text-secondary); font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .mf-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: var(--accent-blue-light); }
+  .mf-btn.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+
+
+  /* ---- DATE RANGE FILTER ---- */
+  .date-filter-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px;
+    margin-bottom: 18px; box-shadow: var(--shadow-sm);
+  }
+  .df-label { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  .df-sep { width: 1px; height: 18px; background: var(--border); }
+  .df-input-group { display: flex; align-items: center; gap: 6px; }
+  .df-input-label { font-size: 11.5px; color: var(--text-muted); }
+  .df-input {
+    padding: 5px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 12px; font-family: 'DM Sans', sans-serif; color: var(--text-primary);
+    background: var(--surface); cursor: pointer;
+  }
+  .df-input:focus { outline: none; border-color: var(--accent-blue); }
+  .df-reset-btn {
+    padding: 5px 12px; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 500;
+    cursor: pointer; border: 1.5px solid var(--border); background: transparent;
+    color: var(--text-secondary); font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .df-reset-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: var(--accent-blue-light); }
+  .df-active-label { font-size: 11px; color: var(--accent-blue); font-weight: 500; padding: 3px 8px; background: var(--accent-blue-light); border-radius: 12px; }
+
+  /* ---- COURIER SCORECARDS ---- */
+  .courier-kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+
+
+  /* ---- MAP METRIC BUTTONS ---- */
+  .map-metric-btn { transition: all 0.2s; }
+  .map-metric-btn.active { box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+
+  /* ---- RESPONSIVE FALLBACK ---- */
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-dot"></div>
+    <span class="brand-name">Era Botanics</span>
+    <span class="brand-sub">Order Intelligence</span>
+  </div>
+  <div class="topbar-right">
+    <span class="upload-status" id="upload-status">Jan – Mar 2026 · 151,227 orders</span>
+    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+      ↑ Update Data
+    </button>
+    <input type="file" id="file-input" accept=".xlsx" onchange="loadNewFile(this)">
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Overview</div>
+      <div class="nav-item active" onclick="showPage('overview', this)">
+        <span class="nav-icon">◼</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="showPage('trends', this)">
+        <span class="nav-icon">◈</span> Time Trends
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Analysis</div>
+      <div class="nav-item" onclick="showPage('sku', this)">
+        <span class="nav-icon">◇</span> SKU Analysis
+      </div>
+      <div class="nav-item" onclick="showPage('geo', this)">
+        <span class="nav-icon">◉</span> Geo Analysis
+      </div>
+      <div class="nav-item" onclick="showPage('tier', this)">
+        <span class="nav-icon">▣</span> Tier Analysis
+      </div>
+      <div class="nav-item" onclick="showPage('courier', this)">
+        <span class="nav-icon">▷</span> Courier
+      </div>
+      <div class="nav-item" onclick="showPage('warehouse', this)">
+        <span class="nav-icon">▦</span> Warehouse
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Deep Dives</div>
+      <div class="nav-item" onclick="showPage('rto', this)">
+        <span class="nav-icon">⚑</span> RTO Intelligence
+      </div>
+      <div class="nav-item" onclick="showPage('order_status', this)">
+        <span class="nav-icon">≡</span> Order Status
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- ============ OVERVIEW PAGE ============ -->
+    <div class="page active" id="page-overview">
+      <div class="page-header">
+        <div class="page-title">Executive Dashboard</div>
+        <div class="page-sub">January – March 2026 · All warehouses · All SKUs</div>
+      </div>
+
+            <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-overview">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-overview" value="2026-01-01" onchange="onDateChange('overview')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-overview" value="2026-03-18" onchange="onDateChange('overview')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('overview')">Reset</button>
+        <span class="df-active-label" id="df-active-overview">All dates</span>
+      </div>
+
+<!-- MONTH FILTER -->
+      <div class="month-filter-bar">
+        <span class="mf-label">Month</span>
+        <div class="mf-sep"></div>
+        <button class="mf-btn active" onclick="setMonthFilter('overview','All',this)">All</button>
+        <button class="mf-btn" onclick="setMonthFilter('overview','January',this)">January</button>
+        <button class="mf-btn" onclick="setMonthFilter('overview','February',this)">February</button>
+        <button class="mf-btn" onclick="setMonthFilter('overview','March',this)">March</button>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Orders</div>
+          <div class="kpi-value" id="k-total">—</div>
+          <div class="kpi-sub">Unique order IDs</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Delivered</div>
+          <div class="kpi-value" id="k-delivered">—</div>
+          <div class="kpi-sub" id="k-delivery-rate">—% delivery rate</div>
+        </div>
+        <div class="kpi-card rto">
+          <div class="kpi-label">RTO Orders</div>
+          <div class="kpi-value" id="k-rto">—</div>
+          <div class="kpi-sub" id="k-rto-rate">—% RTO rate</div>
+        </div>
+        <div class="kpi-card gray">
+          <div class="kpi-label">In Transit</div>
+          <div class="kpi-value" id="k-transit">—</div>
+          <div class="kpi-sub">Pending delivery</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Total Revenue</div>
+          <div class="kpi-value" id="k-revenue">—</div>
+          <div class="kpi-sub">Invoice value</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg Order Value</div>
+          <div class="kpi-value" id="k-aov">—</div>
+          <div class="kpi-sub">Per order</div>
+        </div>
+        <div class="kpi-card gray">
+          <div class="kpi-label">Not Picked</div>
+          <div class="kpi-value" id="k-notpicked">—</div>
+          <div class="kpi-sub">Pickup failed</div>
+        </div>
+        <div class="kpi-card gray">
+          <div class="kpi-label">Lost</div>
+          <div class="kpi-value" id="k-lost">—</div>
+          <div class="kpi-sub">Lost in transit</div>
+        </div>
+      </div>
+
+      <!-- Monthly + Status donut -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Monthly Orders & RTO Trend</div>
+          <div class="chart-wrap">
+            <canvas id="chart-monthly-bar"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Overall Status Distribution</div>
+          <div class="chart-wrap">
+            <canvas id="chart-status-donut"></canvas>
+          </div>
+          <div class="legend" id="legend-status"></div>
+        </div>
+      </div>
+
+      <!-- Monthly RTO Rate -->
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">RTO Rate by Month</div>
+          <div class="chart-wrap short">
+            <canvas id="chart-rto-line"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Monthly Revenue (₹)</div>
+          <div class="chart-wrap short">
+            <canvas id="chart-revenue"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Order Volume by Month</div>
+          <div class="chart-wrap short">
+            <canvas id="chart-volume-donut"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top states + Top SKUs by volume -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Top 10 States by Orders</div>
+          <div class="table-scroll">
+            <table class="data-table" id="tbl-top-states"></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top 10 SKUs by Volume</div>
+          <div class="table-scroll">
+            <table class="data-table" id="tbl-top-skus"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TIME TRENDS PAGE ============ -->
+    <div class="page" id="page-trends">
+      <div class="page-header">
+        <div class="page-title">Time Series Analysis</div>
+
+      <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-trends">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-trends" value="2026-01-01" onchange="onDateChange('trends')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-trends" value="2026-03-18" onchange="onDateChange('trends')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('trends')">Reset</button>
+        <span class="df-active-label" id="df-active-trends">All dates</span>
+      </div>
+
+
+        <div class="page-sub">Daily, monthly patterns across all metrics</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Daily Order Volume — Jan to Mar 2026</div>
+        <div class="chart-wrap tall">
+          <canvas id="chart-daily-orders"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Daily RTO Count & Rate</div>
+        <div class="chart-wrap tall">
+          <canvas id="chart-daily-rto"></canvas>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Monthly Status Breakdown</div>
+          <div class="chart-wrap">
+            <canvas id="chart-monthly-stacked"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Monthly RTO Rate Comparison</div>
+          <div class="chart-wrap">
+            <canvas id="chart-monthly-rto-bar"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SKU PAGE ============ -->
+    <div class="page" id="page-sku">
+      <div class="page-header">
+        <div class="page-title">SKU Analysis</div>
+
+      <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-sku">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-sku" value="2026-01-01" onchange="onDateChange('sku')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-sku" value="2026-03-18" onchange="onDateChange('sku')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('sku')">Reset</button>
+        <span class="df-active-label" id="df-active-sku">All dates</span>
+      </div>
+
+
+        <div class="page-sub">Performance metrics per SKU including RTO%, delivery rate, and monthly trends</div>
+      </div>
+
+      <!-- SKU Selector -->
+      <div class="controls">
+        <span class="ctrl-label">Select SKU:</span>
+        <select id="sku-select" onchange="updateSKUPage()"></select>
+      </div>
+
+      <div class="sku-detail-card" id="sku-detail-header">
+        <div class="sku-name-big" id="sku-detail-name">—</div>
+        <div class="sku-code" id="sku-detail-code">—</div>
+      </div>
+
+      <div class="mini-board" id="sku-mini-kpis">
+        <div class="mini-kpi"><div class="mini-kpi-label">Total Orders</div><div class="mini-kpi-val dark" id="sm-total">—</div></div>
+        <div class="mini-kpi"><div class="mini-kpi-label">Delivered</div><div class="mini-kpi-val blue" id="sm-delivered">—</div></div>
+        <div class="mini-kpi"><div class="mini-kpi-label">RTO</div><div class="mini-kpi-val red" id="sm-rto">—</div></div>
+        <div class="mini-kpi"><div class="mini-kpi-label">RTO Rate</div><div class="mini-kpi-val red" id="sm-rto-rate">—</div></div>
+        <div class="mini-kpi"><div class="mini-kpi-label">Delivery Rate</div><div class="mini-kpi-val blue" id="sm-del-rate">—</div></div>
+        <div class="mini-kpi"><div class="mini-kpi-label">Item Qty Sold</div><div class="mini-kpi-val dark" id="sm-qty">—</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Monthly Performance</div>
+          <div class="chart-wrap">
+            <canvas id="chart-sku-monthly"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Status Breakdown</div>
+          <div class="chart-wrap">
+            <canvas id="chart-sku-status"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-div"></div>
+      <div class="card-title" style="margin-bottom:12px; font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">All SKUs — RTO Rate Comparison (min 50 orders)</div>
+      <div class="card">
+        <div class="chart-wrap tall">
+          <canvas id="chart-sku-rto-all"></canvas>
+        </div>
+      </div>
+      <div class="section-div"></div>
+      <div class="card-title" style="margin-bottom:12px; font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">SKU × Date — RTO% Heat Map</div>
+      <div class="card">
+        <div class="hm-controls">
+          <div class="hm-min-orders">
+            <span>Min orders/day:</span>
+            <input type="number" id="hm-min-orders" value="1" min="1" max="50" onchange="renderHeatmap()">
+          </div>
+          <div class="mf-label" style="margin-left:8px">Filter Month:</div>
+          <button class="mf-btn active" onclick="setHeatmapMonth('All',this)">All</button>
+          <button class="mf-btn" onclick="setHeatmapMonth('January',this)">January</button>
+          <button class="mf-btn" onclick="setHeatmapMonth('February',this)">February</button>
+          <button class="mf-btn" onclick="setHeatmapMonth('March',this)">March</button>
+        </div>
+        <div class="heatmap-container" id="heatmap-container">
+          <div style="padding:20px;color:var(--text-muted)">Loading heatmap...</div>
+        </div>
+        <div class="hm-legend" style="margin-top:10px">
+          <span class="hm-legend-label">0%</span>
+          <div class="hm-legend-bar"></div>
+          <span class="hm-legend-label">100%</span>
+          <span style="margin-left:16px;font-size:11px;color:var(--text-muted)">■ Empty = no orders that day</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============ GEO PAGE ============ -->
+    <div class="page" id="page-geo">
+      <div class="page-header">
+        <div class="page-title">Geographic Analysis</div>
+        <div class="page-sub">State-wise and city-wise order performance</div>
+      </div>
+
+            <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-geo">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-geo" value="2026-01-01" onchange="onDateChange('geo')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-geo" value="2026-03-18" onchange="onDateChange('geo')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('geo')">Reset</button>
+        <span class="df-active-label" id="df-active-geo">All dates</span>
+      </div>
+
+<!-- MONTH FILTER -->
+      <div class="month-filter-bar">
+        <span class="mf-label">Month</span>
+        <div class="mf-sep"></div>
+        <button class="mf-btn active" onclick="setMonthFilter('geo','All',this)">All</button>
+        <button class="mf-btn" onclick="setMonthFilter('geo','January',this)">January</button>
+        <button class="mf-btn" onclick="setMonthFilter('geo','February',this)">February</button>
+        <button class="mf-btn" onclick="setMonthFilter('geo','March',this)">March</button>
+      </div>
+
+      <div class="tab-row" id="geo-tabs">
+        <div class="tab active" onclick="switchGeoTab('state', this)">State View</div>
+        <div class="tab" onclick="switchGeoTab('city', this)">City View</div>
+        <div class="tab" onclick="switchGeoTab('map', this)">&#127757; India Map</div>
+      </div>
+
+      <!-- State View -->
+      <div id="geo-state-view">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Top 15 States — Order Volume</div>
+            <div class="chart-wrap tall">
+              <canvas id="chart-state-bar"></canvas>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Top 15 States — RTO Rate %</div>
+            <div class="chart-wrap tall">
+              <canvas id="chart-state-rto"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">All States — Detailed Table</div>
+          <div class="table-scroll" style="max-height:420px">
+            <table class="data-table" id="tbl-states"></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map View -->
+      <div id="geo-map-view" style="display:none">
+        <div class="card" style="padding:16px 20px">
+          <!-- Header row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div class="card-title" style="margin-bottom:3px">India State Performance Map</div>
+              <div style="font-size:11.5px;color:var(--text-secondary)">Choropleth fill + bubble overlay · Top 15 states · Hover for details</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <!-- Metric toggle -->
+              <div style="display:flex;background:var(--gray-6);border-radius:20px;padding:3px;border:1px solid var(--border)">
+                <button class="map-metric-btn active" onclick="setMapMetric('rto',this)"
+                  style="padding:5px 14px;border-radius:16px;border:none;font-size:11.5px;font-weight:500;cursor:pointer;background:#d73a3a;color:#fff;font-family:'DM Sans',sans-serif;transition:all 0.2s">
+                  🔴 RTO %
+                </button>
+                <button class="map-metric-btn" onclick="setMapMetric('volume',this)"
+                  style="padding:5px 14px;border-radius:16px;border:none;font-size:11.5px;font-weight:500;cursor:pointer;background:transparent;color:var(--text-secondary);font-family:'DM Sans',sans-serif;transition:all 0.2s">
+                  🟢 Volume %
+                </button>
+              </div>
+              <!-- Legend -->
+              <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--text-secondary);padding:5px 12px;background:var(--gray-6);border-radius:20px;border:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;opacity:0.8"></div>
+                  <span>RTO Bubbles</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;opacity:0.8"></div>
+                  <span>Volume Bubbles</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ECharts container -->
+          <div id="india-map-container" style="width:100%;height:540px;border-radius:8px;overflow:hidden;border:1px solid var(--border-light)"></div>
+        </div>
+      </div>
+
+      <!-- City View -->
+      <div id="geo-city-view" style="display:none">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Top 20 Cities — Order Volume</div>
+            <div class="chart-wrap tall">
+              <canvas id="chart-city-bar"></canvas>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Top 20 Cities — RTO Rate %</div>
+            <div class="chart-wrap tall">
+              <canvas id="chart-city-rto"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top 50 Cities — Detailed Table</div>
+          <div class="table-scroll" style="max-height:420px">
+            <table class="data-table" id="tbl-cities"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TIER PAGE ============ -->
+    <div class="page" id="page-tier">
+      <div class="page-header">
+        <div class="page-title">Tier Analysis</div>
+        <div class="page-sub">Order performance segmented by city tier (based on pincode mapping)</div>
+      </div>
+
+            <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-tier">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-tier" value="2026-01-01" onchange="onDateChange('tier')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-tier" value="2026-03-18" onchange="onDateChange('tier')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('tier')">Reset</button>
+        <span class="df-active-label" id="df-active-tier">All dates</span>
+      </div>
+
+<!-- MONTH FILTER -->
+      <div class="month-filter-bar">
+        <span class="mf-label">Month</span>
+        <div class="mf-sep"></div>
+        <button class="mf-btn active" onclick="setMonthFilter('tier','All',this)">All</button>
+        <button class="mf-btn" onclick="setMonthFilter('tier','January',this)">January</button>
+        <button class="mf-btn" onclick="setMonthFilter('tier','February',this)">February</button>
+        <button class="mf-btn" onclick="setMonthFilter('tier','March',this)">March</button>
+      </div>
+
+      <!-- Tier KPIs -->
+      <div class="grid-3" id="tier-kpi-cards" style="margin-bottom:16px"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Orders by Tier</div>
+          <div class="chart-wrap">
+            <canvas id="chart-tier-pie"></canvas>
+          </div>
+          <div class="legend" id="legend-tier"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">RTO Rate by Tier</div>
+          <div class="chart-wrap">
+            <canvas id="chart-tier-rto-bar"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Tier × Month — Order Volume</div>
+          <div class="chart-wrap">
+            <canvas id="chart-tier-month"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tier × Month — RTO Rate %</div>
+          <div class="chart-wrap">
+            <canvas id="chart-tier-rto-month"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-div"></div>
+
+      <div class="page-header" style="margin-top:4px">
+        <div class="page-title" style="font-size:16px">Tier 1 City Breakdown</div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Tier 1 Cities — Order Volume</div>
+          <div class="chart-wrap">
+            <canvas id="chart-t1city-bar"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tier 1 Cities — RTO Rate %</div>
+          <div class="chart-wrap">
+            <canvas id="chart-t1city-rto"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Tier 1 Cities — Full Table</div>
+        <div class="table-scroll">
+          <table class="data-table" id="tbl-tier1cities"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ COURIER PAGE ============ -->
+    <div class="page" id="page-courier">
+      <div class="page-header">
+        <div class="page-title">Courier Analysis</div>
+        <div class="page-sub">Performance breakdown by individual courier partner</div>
+      </div>
+
+      <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-courier2">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-courier2" value="2026-01-01" onchange="onDateChange('courier')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-courier2" value="2026-03-18" onchange="onDateChange('courier')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('courier')">Reset</button>
+        <span class="df-active-label" id="df-active-courier2">All dates</span>
+      </div>
+
+      <!-- MONTH FILTER -->
+      <div class="month-filter-bar">
+        <span class="mf-label">Month</span>
+        <div class="mf-sep"></div>
+        <button class="mf-btn active" onclick="setMonthFilter('courier','All',this)">All</button>
+        <button class="mf-btn" onclick="setMonthFilter('courier','January',this)">January</button>
+        <button class="mf-btn" onclick="setMonthFilter('courier','February',this)">February</button>
+        <button class="mf-btn" onclick="setMonthFilter('courier','March',this)">March</button>
+      </div>
+
+      <!-- KPI SCORECARDS -->
+      <div class="courier-kpi-grid" id="courier-kpi-grid"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Top Couriers by Volume</div>
+          <div class="chart-wrap">
+            <canvas id="chart-courier-vol"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">RTO Rate by Courier</div>
+          <div class="chart-wrap">
+            <canvas id="chart-courier-rto-bar"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Courier × Month — Order Volume</div>
+          <div class="chart-wrap">
+            <canvas id="chart-courier-month-vol"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Courier × Month — Delivery Rate %</div>
+          <div class="chart-wrap">
+            <canvas id="chart-courier-month-del"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Courier × State — RTO Rate % (Top States)</div>
+          <div class="chart-wrap tall">
+            <canvas id="chart-courier-state"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Courier × City — Top 15 Cities by Volume</div>
+          <div class="chart-wrap tall">
+            <canvas id="chart-courier-city"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Courier Performance — Full Table</div>
+        <div class="table-scroll" style="max-height:380px">
+          <table class="data-table" id="tbl-couriers"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ WAREHOUSE PAGE ============ -->
+    <div class="page" id="page-warehouse">
+      <div class="page-header">
+        <div class="page-title">Warehouse Analysis</div>
+        <div class="page-sub">Performance by Client Location (warehouse)</div>
+      </div>
+
+            <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-warehouse">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-warehouse" value="2026-01-01" onchange="onDateChange('warehouse')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-warehouse" value="2026-03-18" onchange="onDateChange('warehouse')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('warehouse')">Reset</button>
+        <span class="df-active-label" id="df-active-warehouse">All dates</span>
+      </div>
+
+<!-- MONTH FILTER -->
+      <div class="month-filter-bar">
+        <span class="mf-label">Month</span>
+        <div class="mf-sep"></div>
+        <button class="mf-btn active" onclick="setMonthFilter('warehouse','All',this)">All</button>
+        <button class="mf-btn" onclick="setMonthFilter('warehouse','January',this)">January</button>
+        <button class="mf-btn" onclick="setMonthFilter('warehouse','February',this)">February</button>
+        <button class="mf-btn" onclick="setMonthFilter('warehouse','March',this)">March</button>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Orders by Warehouse</div>
+          <div class="chart-wrap">
+            <canvas id="chart-wh-bar"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">RTO Rate by Warehouse</div>
+          <div class="chart-wrap">
+            <canvas id="chart-wh-rto"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Warehouse Performance Table</div>
+        <table class="data-table" id="tbl-warehouses"></table>
+      </div>
+    </div>
+
+    <!-- ============ RTO INTELLIGENCE PAGE ============ -->
+    <div class="page" id="page-rto">
+      <div class="page-header">
+        <div class="page-title">RTO Intelligence</div>
+        <div class="page-sub">Deep-dive into RTO patterns across all dimensions</div>
+      </div>
+
+            <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-rto">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-rto" value="2026-01-01" onchange="onDateChange('rto')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-rto" value="2026-03-18" onchange="onDateChange('rto')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('rto')">Reset</button>
+        <span class="df-active-label" id="df-active-rto">All dates</span>
+      </div>
+
+<!-- MONTH FILTER -->
+      <div class="month-filter-bar">
+        <span class="mf-label">Month</span>
+        <div class="mf-sep"></div>
+        <button class="mf-btn active" onclick="setMonthFilter('rto','All',this)">All</button>
+        <button class="mf-btn" onclick="setMonthFilter('rto','January',this)">January</button>
+        <button class="mf-btn" onclick="setMonthFilter('rto','February',this)">February</button>
+        <button class="mf-btn" onclick="setMonthFilter('rto','March',this)">March</button>
+      </div>
+
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:16px">
+        <div class="kpi-card rto">
+          <div class="kpi-label">Overall RTO Rate</div>
+          <div class="kpi-value" id="rto-overall">—</div>
+          <div class="kpi-sub" id="rto-count">— orders</div>
+        </div>
+        <div class="kpi-card rto">
+          <div class="kpi-label">Highest State RTO</div>
+          <div class="kpi-value" id="rto-worst-state">—</div>
+          <div class="kpi-sub" id="rto-worst-state-val">—</div>
+        </div>
+        <div class="kpi-card rto">
+          <div class="kpi-label">Highest SKU RTO</div>
+          <div class="kpi-value" id="rto-worst-sku">—</div>
+          <div class="kpi-sub" id="rto-worst-sku-val">—</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Top 15 States by RTO Rate (min 100 orders)</div>
+          <div class="chart-wrap tall">
+            <canvas id="chart-rto-states"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top 15 SKUs by RTO Rate (min 50 orders)</div>
+          <div class="chart-wrap tall">
+            <canvas id="chart-rto-skus"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">RTO Rate by Tier</div>
+          <div class="chart-wrap">
+            <canvas id="chart-rto-tier"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top Cities by RTO Rate (min 100 orders)</div>
+          <div class="chart-wrap">
+            <canvas id="chart-rto-cities"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ ORDER STATUS PAGE ============ -->
+    <div class="page" id="page-order_status">
+      <div class="page-header">
+        <div class="page-title">Easycom Order Status Breakdown</div>
+
+      <!-- DATE RANGE FILTER -->
+      <div class="date-filter-bar" id="df-bar-order_status">
+        <span class="df-label">Date Range</span>
+        <div class="df-sep"></div>
+        <div class="df-input-group">
+          <span class="df-input-label">From</span>
+          <input type="date" class="df-input" id="df-from-order_status" value="2026-01-01" onchange="onDateChange('order_status')">
+        </div>
+        <div class="df-input-group">
+          <span class="df-input-label">To</span>
+          <input type="date" class="df-input" id="df-to-order_status" value="2026-03-18" onchange="onDateChange('order_status')">
+        </div>
+        <button class="df-reset-btn" onclick="resetDateFilter('order_status')">Reset</button>
+        <span class="df-active-label" id="df-active-order_status">All dates</span>
+      </div>
+
+
+        <div class="page-sub">Raw order status as per Easycom (separate from unified Status)</div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Easycom Status Distribution</div>
+          <div class="chart-wrap">
+            <canvas id="chart-os-donut"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Easycom Status — Bar</div>
+          <div class="chart-wrap">
+            <canvas id="chart-os-bar"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Order Status Table</div>
+        <table class="data-table" id="tbl-order-status"></table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+
+<script>
+// ================================================================
+//  STATE
+// ================================================================
+let DASH = null;
+let chartInstances = {};
+let monthFilters = { overview:'All', geo:'All', tier:'All', courier:'All', warehouse:'All', rto:'All', trends:'All', sku:'All', order_status:'All' };
+let heatmapMonth = 'All';
+let dateFilters = {}; // { pageId: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } }
+const DATE_MIN = '2026-01-01';
+const DATE_MAX = '2026-03-18';
+
+// ================================================================
+//  NAVIGATION
+// ================================================================
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ================================================================
+//  CHART HELPERS
+// ================================================================
+const BLUES = ['#0f3580','#1a56db','#4f83e3','#93b8f0','#ccddf9'];
+const COURIER_COLORS = ['#1a56db','#374151','#4f83e3','#f59e0b','#6b7280','#16a34a','#9ca3af','#d73a3a','#0f3580'];
+const RTO_COLOR = '#d73a3a';
+const DELIVERED_COLOR = '#1a56db';
+const TRANSIT_COLOR = '#f59e0b';
+const gridLines = { color: '#f0f0f0', lineWidth: 1 };
+const tickFont = { family: 'DM Sans', size: 11 };
+const baseScales = {
+  x: { grid: { display: false }, ticks: { font: tickFont, color: '#9ca3af' } },
+  y: { grid: gridLines, ticks: { font: tickFont, color: '#9ca3af' }, border: { display: false } }
+};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+function mkChart(id, config) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  chartInstances[id] = new Chart(ctx, config);
+}
+
+function fmt(n) {
+  if (n >= 10000000) return '₹' + (n/10000000).toFixed(1) + 'Cr';
+  if (n >= 100000) return '₹' + (n/100000).toFixed(1) + 'L';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return n.toLocaleString('en-IN');
+}
+function fmtRupee(n) {
+  if (n >= 10000000) return '₹' + (n/10000000).toFixed(2) + ' Cr';
+  if (n >= 100000) return '₹' + (n/100000).toFixed(2) + ' L';
+  return '₹' + n.toLocaleString('en-IN');
+}
+function fmtN(n) { return (n||0).toLocaleString('en-IN'); }
+function pct(a, b) { return b > 0 ? (a/b*100).toFixed(1) : '0.0'; }
+function rateClass(r) {
+  if (r >= 25) return 'rate-high';
+  if (r >= 15) return 'rate-mid';
+  if (r >= 10) return 'rate-ok';
+  return 'rate-low';
+}
+
+// ================================================================
+//  TOOLTIP BUILDER — context-aware with relative %
+// ================================================================
+function tooltipWithPct(valueLabel, value, total, unit='orders') {
+  const p = pct(value, total);
+  return `${valueLabel}: ${fmtN(value)} (${p}% of ${fmtN(total)} ${unit})`;
+}
+
+function makeStackedTooltip(getTotalFn) {
+  return {
+    callbacks: {
+      label: function(ctx) {
+        const total = getTotalFn(ctx);
+        const val = ctx.parsed.y ?? ctx.parsed;
+        const p = total > 0 ? (val/total*100).toFixed(1) : '0.0';
+        return ` ${ctx.dataset.label}: ${fmtN(val)} (${p}% of ${fmtN(total)})`;
+      }
+    }
+  };
+}
+
+function makeBarTooltip(totals) {
+  // totals: array parallel to labels
+  return {
+    callbacks: {
+      label: function(ctx) {
+        const total = Array.isArray(totals) ? totals[ctx.dataIndex] : totals;
+        const val = ctx.parsed.x ?? ctx.parsed.y;
+        const p = total > 0 ? (val/total*100).toFixed(1) : '0.0';
+        return ` ${ctx.dataset.label}: ${fmtN(val)} (${p}%)`;
+      }
+    }
+  };
+}
+
+// ================================================================
+//  DATE FILTER
+// ================================================================
+function getDateFilter(pageId) {
+  const fromEl = document.getElementById('df-from-' + pageId) || document.getElementById('df-from-' + pageId + '2');
+  const toEl   = document.getElementById('df-to-'   + pageId) || document.getElementById('df-to-'   + pageId + '2');
+  if (!fromEl || !toEl) return { from: DATE_MIN, to: DATE_MAX };
+  return { from: fromEl.value || DATE_MIN, to: toEl.value || DATE_MAX };
+}
+
+function onDateChange(pageId) {
+  const df = getDateFilter(pageId);
+  const activeEl = document.getElementById('df-active-' + pageId) || document.getElementById('df-active-' + pageId + '2');
+  if (activeEl) {
+    if (df.from === DATE_MIN && df.to === DATE_MAX) activeEl.textContent = 'All dates';
+    else activeEl.textContent = df.from.slice(5) + ' → ' + df.to.slice(5);
+  }
+  rerenderPage(pageId);
+}
+
+function resetDateFilter(pageId) {
+  ['', '2'].forEach(suffix => {
+    const f = document.getElementById('df-from-' + pageId + suffix);
+    const t = document.getElementById('df-to-'   + pageId + suffix);
+    if (f) f.value = DATE_MIN;
+    if (t) t.value = DATE_MAX;
+  });
+  const activeEl = document.getElementById('df-active-' + pageId) || document.getElementById('df-active-' + pageId + '2');
+  if (activeEl) activeEl.textContent = 'All dates';
+  rerenderPage(pageId);
+}
+
+function rerenderPage(pageId) {
+  if (pageId === 'overview')      renderOverview();
+  else if (pageId === 'geo')      renderGeo();
+  else if (pageId === 'tier')     renderTier();
+  else if (pageId === 'courier')  renderCourier();
+  else if (pageId === 'warehouse')renderWarehouse();
+  else if (pageId === 'rto')      renderRTO();
+  else if (pageId === 'trends')   renderTrends();
+  else if (pageId === 'sku')      renderSKUPage();
+  else if (pageId === 'order_status') renderOrderStatus();
+}
+
+// ================================================================
+//  MONTH FILTER
+// ================================================================
+function setMonthFilter(page, month, btn) {
+  monthFilters[page] = month;
+  const pageEl = document.getElementById('page-' + page);
+  if (pageEl) pageEl.querySelectorAll('.month-filter-bar .mf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  rerenderPage(page);
+}
+
+function setHeatmapMonth(month, btn) {
+  heatmapMonth = month;
+  document.querySelectorAll('#page-sku .hm-controls .mf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHeatmap();
+}
+
+// ================================================================
+//  FILTER HELPERS
+// ================================================================
+function applyFilters(pageId) {
+  if (!DASH || !DASH._allOrders) return [];
+  const mf = monthFilters[pageId] || 'All';
+  const df = getDateFilter(pageId);
+  return DASH._allOrders.filter(r => {
+    if (mf !== 'All' && r.Month !== mf) return false;
+    if (r._dateInt !== undefined) {
+      const fromInt = dateToInt(df.from);
+      const toInt   = dateToInt(df.to);
+      if (r._dateInt < fromInt || r._dateInt > toInt) return false;
+    }
+    return true;
+  });
+}
+
+function dateToInt(ds) {
+  if (!ds) return 0;
+  const base = new Date('2026-01-01');
+  const d    = new Date(ds);
+  return Math.round((d - base) / 86400000);
+}
+
+function groupBy(arr, key) {
+  const m = {};
+  arr.forEach(r => { const k = r[key] || 'Unknown'; if (!m[k]) m[k] = []; m[k].push(r); });
+  return m;
+}
+
+function summarizeOrders(arr) {
+  const tot = arr.length;
+  if (!tot) return { total:0, delivered:0, rto:0, in_transit:0, rto_rate:0, delivery_rate:0, revenue:0 };
+  const del = arr.filter(r => r.Status==='Delivered').length;
+  const rt  = arr.filter(r => r.Status==='RTO').length;
+  const tr  = arr.filter(r => r.Status==='In Transit').length;
+  const rev = arr.reduce((s,r) => s+(r._invoice||0), 0);
+  return {
+    total:tot, delivered:del, rto:rt, in_transit:tr,
+    rto_rate: parseFloat((rt/tot*100).toFixed(2)),
+    delivery_rate: parseFloat((del/tot*100).toFixed(2)),
+    revenue: parseFloat(rev.toFixed(0))
+  };
+}
+
+// ================================================================
+//  RENDER ALL
+// ================================================================
+function renderAll() {
+  if (!DASH) return;
+  renderOverview();
+  renderTrends();
+  renderSKUPage();
+  renderGeo();
+  renderTier();
+  renderCourier();
+  renderWarehouse();
+  renderRTO();
+  renderOrderStatus();
+  setTimeout(renderHeatmap, 100);
+}
+
+// ================================================================
+//  OVERVIEW
+// ================================================================
+function renderOverview() {
+  const d = DASH;
+  const ords = applyFilters('overview');
+  const tot = ords.length;
+  const del = ords.filter(r=>r.Status==='Delivered').length;
+  const rt  = ords.filter(r=>r.Status==='RTO').length;
+  const tr  = ords.filter(r=>r.Status==='In Transit').length;
+  const inProc  = ords.filter(r=>r.Status==='In Process').length;
+  const notPick = ords.filter(r=>r.Status==='Not Picked').length;
+  const lostC   = ords.filter(r=>r.Status==='Lost').length;
+  const rev = ords.reduce((s,r)=>s+(r._invoice||0), 0);
+  const aov = tot>0 ? rev/tot : 0;
+
+  document.getElementById('k-total').textContent     = tot.toLocaleString('en-IN');
+  document.getElementById('k-delivered').textContent = del.toLocaleString('en-IN');
+  document.getElementById('k-delivery-rate').textContent = tot>0 ? pct(del,tot)+'% delivery rate' : '—';
+  document.getElementById('k-rto').textContent       = rt.toLocaleString('en-IN');
+  document.getElementById('k-rto-rate').textContent  = tot>0 ? pct(rt,tot)+'% RTO rate' : '—';
+  document.getElementById('k-transit').textContent   = tr.toLocaleString('en-IN');
+  document.getElementById('k-revenue').textContent   = fmtRupee(rev);
+  document.getElementById('k-aov').textContent       = '₹'+aov.toFixed(0);
+  document.getElementById('k-notpicked').textContent = notPick.toLocaleString('en-IN');
+  document.getElementById('k-lost').textContent      = lostC.toLocaleString('en-IN');
+
+  const mf = monthFilters.overview;
+  const allMonths = ['January','February','March'];
+  const months = mf==='All' ? allMonths : [mf];
+  const mdata = months.map(m => d.monthly[m] || {delivered:0,rto:0,in_transit:0,revenue:0,total:0,rto_rate:0});
+
+  // Monthly stacked bar with contextual tooltips
+  const monthTotals = mdata.map(m => m.delivered + m.rto + m.in_transit);
+  mkChart('chart-monthly-bar', {
+    type:'bar',
+    data:{
+      labels: months,
+      datasets:[
+        {label:'Delivered',  data:mdata.map(m=>m.delivered),  backgroundColor:DELIVERED_COLOR, borderRadius:4},
+        {label:'RTO',        data:mdata.map(m=>m.rto),        backgroundColor:RTO_COLOR, borderRadius:4},
+        {label:'In Transit', data:mdata.map(m=>m.in_transit), backgroundColor:TRANSIT_COLOR, borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      plugins:{
+        legend:{labels:{font:tickFont}},
+        tooltip:{callbacks:{label:function(ctx){
+          const total = monthTotals[ctx.dataIndex] || 1;
+          const val = ctx.parsed.y;
+          return ` ${ctx.dataset.label}: ${fmtN(val)} (${pct(val,total)}% of month)`;
+        }}}
+      },
+      scales:{...baseScales,
+        x:{stacked:true,grid:{display:false},ticks:{font:tickFont,color:'#9ca3af'}},
+        y:{stacked:true,grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}}
+      }
+    }
+  });
+
+  // Status donut
+  const statuses = ['Delivered','RTO','In Transit','In Process','Not Picked','Lost'];
+  const statusVals = [del,rt,tr,inProc,notPick,lostC];
+  const statusColors = [DELIVERED_COLOR,RTO_COLOR,TRANSIT_COLOR,'#6b7280','#9ca3af','#374151'];
+  mkChart('chart-status-donut',{
+    type:'doughnut',
+    data:{labels:statuses,datasets:[{data:statusVals,backgroundColor:statusColors,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,cutout:'60%',plugins:{
+      legend:{display:false},
+      tooltip:{callbacks:{label:function(ctx){
+        const val=ctx.parsed; return ` ${ctx.label}: ${fmtN(val)} (${pct(val,tot)}%)`;
+      }}}
+    }}
+  });
+  const legEl = document.getElementById('legend-status');
+  legEl.innerHTML = statuses.map((s,i)=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${statusColors[i]}"></div>${s} (${statusVals[i].toLocaleString('en-IN')})</div>`
+  ).join('');
+
+  mkChart('chart-rto-line',{type:'line',
+    data:{labels:months,datasets:[{label:'RTO Rate %',data:mdata.map(m=>m.rto_rate),borderColor:RTO_COLOR,backgroundColor:'rgba(215,58,58,0.1)',tension:0.3,fill:true,pointBackgroundColor:RTO_COLOR,pointRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` RTO Rate: ${ctx.parsed.y}%`}}},scales:baseScales}
+  });
+
+  mkChart('chart-revenue',{type:'bar',
+    data:{labels:months,datasets:[{label:'Revenue',data:mdata.map(m=>m.revenue),backgroundColor:BLUES[1],borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` Revenue: ${fmtRupee(ctx.raw)} (${pct(ctx.raw, rev)}% of total)`}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>fmtRupee(v)}}}}
+  });
+
+  mkChart('chart-volume-donut',{type:'doughnut',
+    data:{labels:months,datasets:[{data:mdata.map(m=>m.total),backgroundColor:BLUES.slice(0,3),borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,cutout:'55%',plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.parsed)} (${pct(ctx.parsed,tot)}%)`}}}}
+  });
+
+  // Top states
+  const stGrp = groupBy(ords,'Shipping State');
+  const topStates = Object.entries(stGrp).map(([k,v])=>({state:k,...summarizeOrders(v)})).sort((a,b)=>b.total-a.total).slice(0,10);
+  document.getElementById('tbl-top-states').innerHTML = `
+    <thead><tr><th>State</th><th>Orders</th><th>RTO%</th></tr></thead>
+    <tbody>${topStates.map(s=>`<tr>
+      <td>${s.state}</td><td>${s.total.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(s.rto_rate)}">${s.rto_rate}%</span></td>
+    </tr>`).join('')}</tbody>`;
+
+  // Top SKUs
+  const skuGrp = groupBy(ords,'SKU');
+  const topSKUs = Object.entries(skuGrp).map(([k,v])=>{
+    const s=summarizeOrders(v);
+    return {sku:k, name:(d.heatmap&&d.heatmap.sku_names[k]||k).substring(0,55), ...s};
+  }).sort((a,b)=>b.total-a.total).slice(0,10);
+  document.getElementById('tbl-top-skus').innerHTML = `
+    <thead><tr><th>SKU</th><th>Name</th><th>Orders</th><th>RTO%</th></tr></thead>
+    <tbody>${topSKUs.map(s=>`<tr>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${s.sku}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</td>
+      <td>${s.total.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(s.rto_rate)}">${s.rto_rate}%</span></td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ================================================================
+//  TRENDS
+// ================================================================
+function renderTrends() {
+  const d = DASH;
+  const daily = d.daily;
+  const df = getDateFilter('trends');
+  const allDates = Object.keys(daily).sort();
+  const dates = allDates.filter(dt => dt >= df.from && dt <= df.to);
+  const totalArr = dates.map(dt=>daily[dt].total);
+  const delivArr = dates.map(dt=>daily[dt].delivered);
+  const rtoArr   = dates.map(dt=>daily[dt].rto);
+  const rtoRateArr = dates.map(dt=>daily[dt].total>0?(daily[dt].rto/daily[dt].total*100).toFixed(1):0);
+
+  mkChart('chart-daily-orders',{type:'line',
+    data:{labels:dates.map(d=>d.slice(5)),datasets:[
+      {label:'Total',    data:totalArr, borderColor:BLUES[1],backgroundColor:'rgba(26,86,219,0.07)',tension:0.2,fill:true,pointRadius:0,borderWidth:1.5},
+      {label:'Delivered',data:delivArr, borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,0.05)',tension:0.2,fill:true,pointRadius:0,borderWidth:1.5},
+      {label:'RTO',      data:rtoArr,   borderColor:RTO_COLOR,backgroundColor:'rgba(215,58,58,0.05)',tension:0.2,fill:true,pointRadius:0,borderWidth:1.5},
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      const idx=ctx.dataIndex; const dayTot=totalArr[idx]||1;
+      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,dayTot)}% of day)`;
+    }}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9ca3af',maxTicksLimit:15}},
+              y:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}}}}
+  });
+
+  mkChart('chart-daily-rto',{type:'bar',
+    data:{labels:dates.map(d=>d.slice(5)),datasets:[
+      {label:'RTO Count',data:rtoArr,backgroundColor:'rgba(215,58,58,0.7)',borderRadius:2,yAxisID:'y'},
+      {label:'RTO Rate %',data:rtoRateArr,borderColor:'#374151',type:'line',tension:0.3,pointRadius:0,borderWidth:1.5,yAxisID:'y2'}
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      if(ctx.dataset.label==='RTO Rate %') return ` RTO Rate: ${ctx.parsed.y}%`;
+      const idx=ctx.dataIndex; const dayTot=totalArr[idx]||1;
+      return ` RTO: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,dayTot)}% of day)`;
+    }}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9ca3af',maxTicksLimit:15}},
+              y:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}},
+              y2:{position:'right',grid:{display:false},ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}}}}
+  });
+
+  const months = Object.keys(d.monthly);
+  const mdata  = months.map(m=>d.monthly[m]);
+  const mTotals = mdata.map(m=>m.delivered+m.rto+m.in_transit);
+
+  mkChart('chart-monthly-stacked',{type:'bar',
+    data:{labels:months,datasets:[
+      {label:'Delivered', data:mdata.map(m=>m.delivered), backgroundColor:DELIVERED_COLOR,borderRadius:4},
+      {label:'RTO',       data:mdata.map(m=>m.rto),       backgroundColor:RTO_COLOR,borderRadius:4},
+      {label:'In Transit',data:mdata.map(m=>m.in_transit),backgroundColor:TRANSIT_COLOR,borderRadius:4},
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      const t=mTotals[ctx.dataIndex]||1;
+      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,t)}% of month)`;
+    }}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:tickFont,color:'#9ca3af'}},
+              y:{stacked:true,grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}}}}
+  });
+
+  mkChart('chart-monthly-rto-bar',{type:'bar',
+    data:{labels:months,datasets:[{label:'RTO Rate %',data:mdata.map(m=>m.rto_rate),backgroundColor:months.map((_,i)=>BLUES[i]),borderRadius:6}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` RTO Rate: ${ctx.parsed.y}%`}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+}
+
+// ================================================================
+//  SKU PAGE
+// ================================================================
+function renderSKUPage() {
+  const d = DASH;
+  const sel = document.getElementById('sku-select');
+  sel.innerHTML = d.skus.map(s=>`<option value="${s.sku}">${s.sku} — ${s.name.substring(0,45)}</option>`).join('');
+  updateSKUPage();
+
+  // All SKUs RTO
+  const filtered = d.skus.filter(s=>s.total_orders>=50).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,30);
+  mkChart('chart-sku-rto-all',{type:'bar',
+    data:{labels:filtered.map(s=>s.sku),datasets:[{label:'RTO Rate %',data:filtered.map(s=>s.rto_rate),backgroundColor:filtered.map(s=>s.rto_rate>=20?RTO_COLOR:s.rto_rate>=12?'#f59e0b':BLUES[2]),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` RTO Rate: ${ctx.parsed.x}%`}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{family:'DM Mono',size:10},color:'#6b7280'}}}}
+  });
+}
+
+function updateSKUPage() {
+  const d = DASH;
+  const sku = document.getElementById('sku-select').value;
+  const s = d.skus.find(x=>x.sku===sku);
+  if (!s) return;
+
+  document.getElementById('sku-detail-name').textContent = s.name;
+  document.getElementById('sku-detail-code').textContent = s.sku;
+  document.getElementById('sm-total').textContent     = s.total_orders.toLocaleString('en-IN');
+  document.getElementById('sm-delivered').textContent = s.delivered.toLocaleString('en-IN');
+  document.getElementById('sm-rto').textContent       = s.rto.toLocaleString('en-IN');
+  document.getElementById('sm-rto-rate').textContent  = s.rto_rate+'%';
+  document.getElementById('sm-del-rate').textContent  = s.delivery_rate+'%';
+  document.getElementById('sm-qty').textContent       = s.item_qty.toLocaleString('en-IN');
+
+  const months = ['January','February','March'];
+  const mVals  = months.map(m=>{
+    const key=`${sku}|${m}`;
+    return d.sku_month[key]||{total:0,rto:0,delivered:0,rto_rate:0};
+  });
+
+  // SKU Monthly — contextual: % of SKU total orders that month
+  mkChart('chart-sku-monthly',{type:'bar',
+    data:{labels:months,datasets:[
+      {label:'Delivered',data:mVals.map(v=>v.delivered),backgroundColor:DELIVERED_COLOR,borderRadius:4},
+      {label:'RTO',      data:mVals.map(v=>v.rto),      backgroundColor:RTO_COLOR,borderRadius:4},
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      const mTotal=mVals[ctx.dataIndex].total||1;
+      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,mTotal)}% of ${fmtN(mTotal)} orders in ${months[ctx.dataIndex]})`;
+    }}}},
+      scales:{x:{grid:{display:false},ticks:{font:tickFont}},y:{grid:gridLines,ticks:{font:tickFont},border:{display:false}}}}
+  });
+
+  mkChart('chart-sku-status',{type:'doughnut',
+    data:{labels:['Delivered','RTO','In Transit','Other'],datasets:[{
+      data:[s.delivered,s.rto,s.in_transit,s.total_orders-s.delivered-s.rto-(s.in_transit||0)],
+      backgroundColor:[DELIVERED_COLOR,RTO_COLOR,TRANSIT_COLOR,'#9ca3af'],borderWidth:2,borderColor:'#fff'
+    }]},
+    options:{responsive:true,cutout:'55%',plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      return ` ${ctx.label}: ${fmtN(ctx.parsed)} (${pct(ctx.parsed,s.total_orders)}%)`;
+    }}}}}
+  });
+}
+
+// ================================================================
+//  GEO
+// ================================================================
+function switchGeoTab(view, el) {
+  document.querySelectorAll('#geo-tabs .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('geo-state-view').style.display = view==='state' ? '' : 'none';
+  document.getElementById('geo-city-view').style.display  = view==='city'  ? '' : 'none';
+  document.getElementById('geo-map-view').style.display   = view==='map'   ? '' : 'none';
+  if (view === 'map') {
+    // Stop any old canvas animation
+    if (window.mapAnimFrame) { cancelAnimationFrame(window.mapAnimFrame); window.mapAnimFrame = null; }
+    setTimeout(initIndiaMap, 60);
+  } else {
+    // Stop pulse timer when leaving map
+    if (window._mapPulseTimer) { clearInterval(window._mapPulseTimer); window._mapPulseTimer = null; }
+  }
+}
+
+function renderGeo() {
+  const d = DASH;
+  const ords = applyFilters('geo');
+  const grandTotal = ords.length;
+
+  const stGrp = groupBy(ords,'Shipping State');
+  const filtStates = Object.entries(stGrp).map(([k,v])=>({state:k,...summarizeOrders(v)})).sort((a,b)=>b.total-a.total);
+  const ctGrp = groupBy(ords,'Shipping City');
+  const filtCities = Object.entries(ctGrp).filter(([,v])=>v.length>=20).map(([k,v])=>({city:k,...summarizeOrders(v)})).sort((a,b)=>b.total-a.total).slice(0,50);
+
+  const top15s = filtStates.slice(0,15);
+  const top20c = filtCities.slice(0,20);
+  const stateTotals = top15s.map(s=>s.total);
+
+  mkChart('chart-state-bar',{type:'bar',
+    data:{labels:top15s.map(s=>s.state),datasets:[{label:'Orders',data:top15s.map(s=>s.total),backgroundColor:BLUES[1],borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      return ` Orders: ${fmtN(ctx.parsed.x)} (${pct(ctx.parsed.x,grandTotal)}% of total)`;
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{size:11},color:'#6b7280'}}}}
+  });
+
+  const statesByRTO = [...filtStates].filter(s=>s.total>=100).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,15);
+  mkChart('chart-state-rto',{type:'bar',
+    data:{labels:statesByRTO.map(s=>s.state),datasets:[{label:'RTO Rate %',data:statesByRTO.map(s=>s.rto_rate),backgroundColor:statesByRTO.map(s=>s.rto_rate>=20?RTO_COLOR:s.rto_rate>=15?'#f59e0b':BLUES[2]),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const st=statesByRTO[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.x}%`, ` RTO Orders: ${fmtN(st.rto)} of ${fmtN(st.total)}`];
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{size:11},color:'#6b7280'}}}}
+  });
+
+  document.getElementById('tbl-states').innerHTML=`
+    <thead><tr><th>#</th><th>State</th><th>Orders</th><th>% of Total</th><th>Delivered</th><th>RTO</th><th>RTO%</th><th>Revenue</th></tr></thead>
+    <tbody>${filtStates.map((s,i)=>`<tr>
+      <td style="color:var(--text-muted);font-family:'DM Mono',monospace">${i+1}</td>
+      <td><strong>${s.state}</strong></td>
+      <td>${s.total.toLocaleString('en-IN')}</td>
+      <td>${pct(s.total,grandTotal)}%</td>
+      <td>${s.delivered.toLocaleString('en-IN')}</td>
+      <td style="color:var(--rto-color)">${s.rto.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(s.rto_rate)}">${s.rto_rate}%</span></td>
+      <td>${fmtRupee(s.revenue)}</td>
+    </tr>`).join('')}</tbody>`;
+
+  mkChart('chart-city-bar',{type:'bar',
+    data:{labels:top20c.map(c=>c.city),datasets:[{label:'Orders',data:top20c.map(c=>c.total),backgroundColor:BLUES[2],borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      return ` Orders: ${fmtN(ctx.parsed.x)} (${pct(ctx.parsed.x,grandTotal)}% of total)`;
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{size:10},color:'#6b7280'}}}}
+  });
+
+  const citiesByRTO = [...filtCities].filter(c=>c.total>=100).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,20);
+  mkChart('chart-city-rto',{type:'bar',
+    data:{labels:citiesByRTO.map(c=>c.city),datasets:[{label:'RTO Rate %',data:citiesByRTO.map(c=>c.rto_rate),backgroundColor:citiesByRTO.map(c=>c.rto_rate>=20?RTO_COLOR:c.rto_rate>=15?'#f59e0b':BLUES[3]),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const ct=citiesByRTO[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.x}%`,` RTO: ${fmtN(ct.rto)} of ${fmtN(ct.total)} orders`];
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{size:10},color:'#6b7280'}}}}
+  });
+
+  if (document.getElementById('geo-map-view').style.display !== 'none') updateMapBubbles();
+  document.getElementById('tbl-cities').innerHTML=`
+    <thead><tr><th>#</th><th>City</th><th>Orders</th><th>% of Total</th><th>Delivered</th><th>RTO</th><th>RTO%</th><th>Revenue</th></tr></thead>
+    <tbody>${filtCities.map((c,i)=>`<tr>
+      <td style="color:var(--text-muted);font-family:'DM Mono',monospace">${i+1}</td>
+      <td>${c.city}</td><td>${c.total.toLocaleString('en-IN')}</td>
+      <td>${pct(c.total,grandTotal)}%</td>
+      <td>${c.delivered.toLocaleString('en-IN')}</td>
+      <td style="color:var(--rto-color)">${c.rto.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(c.rto_rate)}">${c.rto_rate}%</span></td>
+      <td>${fmtRupee(c.revenue)}</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ================================================================
+//  TIER
+// ================================================================
+function renderTier() {
+  const d = DASH;
+  const ords = applyFilters('tier');
+  const grandTotal = ords.length;
+  const tiers = ['Tier 1','Tier 2','Tier 3'];
+  const tierGrp = groupBy(ords,'Tier');
+  const tierData = tiers.map(t=>{ const v=tierGrp[t]||[]; const s=summarizeOrders(v); return {tier:t,...s}; });
+
+  const t1ords = ords.filter(r=>r.Tier==='Tier 1');
+  const t1grp  = groupBy(t1ords,'Tier1City');
+  const filtT1 = Object.entries(t1grp).filter(([k])=>k!=='Tier 2/3').map(([k,v])=>({city:k,...summarizeOrders(v)})).sort((a,b)=>b.total-a.total);
+
+  // KPI cards
+  const tierKpiEl = document.getElementById('tier-kpi-cards');
+  tierKpiEl.innerHTML = tierData.map(t=>`
+    <div class="kpi-card">
+      <div class="kpi-label">${t.tier}</div>
+      <div class="kpi-value" style="font-size:22px">${t.total.toLocaleString('en-IN')}</div>
+      <div class="kpi-sub">${pct(t.total,grandTotal)}% of orders · RTO <strong style="color:var(--rto-color)">${t.rto_rate}%</strong></div>
+      <div class="kpi-sub" style="margin-top:2px">${fmtRupee(t.revenue)}</div>
+    </div>`).join('');
+
+  mkChart('chart-tier-pie',{type:'doughnut',
+    data:{labels:tierData.map(t=>t.tier),datasets:[{data:tierData.map(t=>t.total),backgroundColor:[BLUES[1],BLUES[2],BLUES[3]],borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,cutout:'55%',plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      return ` ${ctx.label}: ${fmtN(ctx.parsed)} (${pct(ctx.parsed,grandTotal)}% of total)`;
+    }}}}}
+  });
+  document.getElementById('legend-tier').innerHTML = tierData.map((t,i)=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${[BLUES[1],BLUES[2],BLUES[3]][i]}"></div>${t.tier}: ${t.total.toLocaleString('en-IN')} (${pct(t.total,grandTotal)}%)</div>`
+  ).join('');
+
+  mkChart('chart-tier-rto-bar',{type:'bar',
+    data:{labels:tierData.map(t=>t.tier),datasets:[{label:'RTO Rate %',data:tierData.map(t=>t.rto_rate),backgroundColor:[RTO_COLOR,'#f59e0b',BLUES[2]],borderRadius:6}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const t=tierData[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.y}%`,` (${fmtN(t.rto)} RTO of ${fmtN(t.total)} orders)`];
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+
+  // Tier × Month
+  const months = ['January','February','March'];
+  const tm = d.tier_month;
+  const monthTotals = months.map(m=>tiers.reduce((s,t)=>{
+    const k=`${t}|${m}`; return s+((tm[k]||{total:0}).total);
+  },0));
+
+  mkChart('chart-tier-month',{type:'bar',
+    data:{labels:months,datasets:tiers.map((tier,i)=>({
+      label:tier,
+      data:months.map(m=>(tm[`${tier}|${m}`]||{total:0}).total),
+      backgroundColor:[BLUES[1],BLUES[2],BLUES[3]][i], borderRadius:4
+    }))},
+    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      const mIdx=ctx.dataIndex; const mTotal=monthTotals[mIdx]||1;
+      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,mTotal)}% of ${months[mIdx]} total)`;
+    }}}},
+      scales:{x:{grid:{display:false},ticks:{font:tickFont}},y:{grid:gridLines,ticks:{font:tickFont},border:{display:false}}}}
+  });
+
+  mkChart('chart-tier-rto-month',{type:'line',
+    data:{labels:months,datasets:tiers.map((tier,i)=>({
+      label:tier,
+      data:months.map(m=>(tm[`${tier}|${m}`]||{rto_rate:0}).rto_rate),
+      borderColor:[BLUES[1],BLUES[2],BLUES[3]][i],
+      tension:0.3,pointRadius:5,borderWidth:2,fill:false
+    }))},
+    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      const tier=ctx.dataset.label; const m=months[ctx.dataIndex];
+      const k=`${tier}|${m}`; const td=tm[k]||{total:0,rto:0};
+      return ` ${tier}: ${ctx.parsed.y}% (${fmtN(td.rto)} RTO of ${fmtN(td.total)})`;
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+
+  // Tier 1 cities
+  const t1 = filtT1.length>0 ? filtT1 : d.tier1cities;
+  const t1Total = t1.reduce((s,c)=>s+c.total,0);
+  mkChart('chart-t1city-bar',{type:'bar',
+    data:{labels:t1.map(c=>c.city),datasets:[{label:'Orders',data:t1.map(c=>c.total),backgroundColor:BLUES[1],borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      return ` Orders: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,t1Total)}% of Tier 1)`;
+    }}}}, scales:{...baseScales}}
+  });
+  mkChart('chart-t1city-rto',{type:'bar',
+    data:{labels:t1.map(c=>c.city),datasets:[{label:'RTO Rate %',data:t1.map(c=>c.rto_rate),backgroundColor:t1.map(c=>c.rto_rate>=15?RTO_COLOR:BLUES[3]),borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const ct=t1[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.y}%`,` (${fmtN(ct.rto)} RTO of ${fmtN(ct.total)})`];
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+
+  document.getElementById('tbl-tier1cities').innerHTML=`
+    <thead><tr><th>City</th><th>Orders</th><th>% of Tier 1</th><th>Delivered</th><th>RTO</th><th>RTO%</th><th>Revenue</th></tr></thead>
+    <tbody>${t1.map(c=>`<tr>
+      <td><strong>${c.city}</strong></td>
+      <td>${c.total.toLocaleString('en-IN')}</td>
+      <td>${pct(c.total,t1Total)}%</td>
+      <td>${c.delivered.toLocaleString('en-IN')}</td>
+      <td style="color:var(--rto-color)">${c.rto.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(c.rto_rate)}">${c.rto_rate}%</span></td>
+      <td>${fmtRupee(c.revenue)}</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ================================================================
+//  COURIER (revamped — uses Courier field, not aggregator)
+// ================================================================
+function renderCourier() {
+  const d = DASH;
+  const ords = applyFilters('courier');
+  const grandTotal = ords.length;
+
+  const couGrp = groupBy(ords,'Courier');
+  const couriers = Object.entries(couGrp).map(([k,v])=>({courier:k,...summarizeOrders(v)})).sort((a,b)=>b.total-a.total);
+  const months   = ['January','February','March'];
+  const topCouriers = couriers.slice(0,7);
+  const courierNames = topCouriers.map(c=>c.courier);
+
+  // KPI Scorecards
+  const kpiGrid = document.getElementById('courier-kpi-grid');
+  if (kpiGrid) {
+    const total = grandTotal;
+    const del   = ords.filter(r=>r.Status==='Delivered').length;
+    const rt    = ords.filter(r=>r.Status==='RTO').length;
+    kpiGrid.innerHTML = [
+      {label:'Total Orders',  val:fmtN(total),           sub:'All couriers',       cls:''},
+      {label:'Delivered',     val:fmtN(del),             sub:pct(del,total)+'% delivery rate', cls:'green'},
+      {label:'RTO Orders',    val:fmtN(rt),              sub:pct(rt,total)+'% RTO rate',       cls:'rto'},
+      {label:'Active Couriers',val:couriers.length,      sub:'Unique partners',    cls:''},
+      {label:'Top by Volume', val:couriers[0]?.courier||'—', sub:fmtN(couriers[0]?.total||0)+' orders', cls:''},
+    ].map(k=>`<div class="kpi-card ${k.cls}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value" style="font-size:20px">${k.val}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+  }
+
+  // Top couriers by volume
+  mkChart('chart-courier-vol',{type:'bar',
+    data:{labels:topCouriers.map(c=>c.courier),datasets:[{label:'Orders',data:topCouriers.map(c=>c.total),backgroundColor:topCouriers.map((_,i)=>COURIER_COLORS[i]||BLUES[2]),borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      return ` Orders: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,grandTotal)}% of total)`;
+    }}}},scales:{...baseScales}}
+  });
+
+  // RTO by courier
+  mkChart('chart-courier-rto-bar',{type:'bar',
+    data:{labels:couriers.map(c=>c.courier),datasets:[{label:'RTO Rate %',data:couriers.map(c=>c.rto_rate),backgroundColor:couriers.map(c=>c.rto_rate>=20?RTO_COLOR:c.rto_rate>=12?'#f59e0b':BLUES[2]),borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const cv=couriers[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.y}%`,` (${fmtN(cv.rto)} RTO of ${fmtN(cv.total)} orders)`];
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+
+  // Courier × Month — Volume
+  const couMonthTotals = months.map(m=>ords.filter(r=>r.Month===m).length);
+  mkChart('chart-courier-month-vol',{type:'bar',
+    data:{labels:months,datasets:topCouriers.map((c,i)=>({
+      label:c.courier,
+      data:months.map(m=>{ const k=ords.filter(r=>r.Courier===c.courier&&r.Month===m).length; return k; }),
+      backgroundColor:COURIER_COLORS[i]||BLUES[2], borderRadius:3
+    }))},
+    options:{responsive:true,plugins:{legend:{labels:{font:{family:'DM Sans',size:10}}},tooltip:{callbacks:{label:function(ctx){
+      const mTotal=couMonthTotals[ctx.dataIndex]||1;
+      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,mTotal)}% of ${months[ctx.dataIndex]})`;
+    }}}},
+      scales:{x:{grid:{display:false},ticks:{font:tickFont}},y:{grid:gridLines,ticks:{font:tickFont},border:{display:false}}}}
+  });
+
+  // Courier × Month — Delivery Rate
+  mkChart('chart-courier-month-del',{type:'line',
+    data:{labels:months,datasets:topCouriers.map((c,i)=>{
+      const pts=months.map(m=>{
+        const mords=ords.filter(r=>r.Courier===c.courier&&r.Month===m);
+        if(!mords.length) return null;
+        const d=mords.filter(r=>r.Status==='Delivered').length;
+        return parseFloat(pct(d,mords.length));
+      });
+      return {label:c.courier,data:pts,borderColor:COURIER_COLORS[i]||BLUES[2],tension:0.3,pointRadius:4,borderWidth:2,fill:false,spanGaps:true};
+    })},
+    options:{responsive:true,plugins:{legend:{labels:{font:{family:'DM Sans',size:10}}},tooltip:{callbacks:{label:function(ctx){
+      const cv=topCouriers[ctx.datasetIndex]; const m=months[ctx.dataIndex];
+      const mords=ords.filter(r=>r.Courier===cv.courier&&r.Month===m);
+      const d=mords.filter(r=>r.Status==='Delivered').length;
+      return ` ${cv.courier}: ${ctx.parsed.y}% (${fmtN(d)} of ${fmtN(mords.length)})`;
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,min:0,max:100,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+
+  // Courier × State — grouped bar (top 6 states by orders, top 5 couriers)
+  const stateGrpAll = groupBy(ords,'Shipping State');
+  const top6States  = Object.entries(stateGrpAll).sort((a,b)=>b[1].length-a[1].length).slice(0,6).map(([k])=>k);
+  const top5Couriers= couriers.slice(0,5);
+  mkChart('chart-courier-state',{type:'bar',
+    data:{labels:top6States,datasets:top5Couriers.map((c,i)=>({
+      label:c.courier,
+      data:top6States.map(st=>{
+        const sub=ords.filter(r=>r.Courier===c.courier&&r['Shipping State']===st);
+        if(!sub.length) return 0;
+        const rt=sub.filter(r=>r.Status==='RTO').length;
+        return parseFloat(pct(rt,sub.length));
+      }),
+      backgroundColor:COURIER_COLORS[i]||BLUES[2], borderRadius:3
+    }))},
+    options:{responsive:true,plugins:{legend:{labels:{font:{family:'DM Sans',size:10}}},tooltip:{callbacks:{label:function(ctx){
+      const cv=top5Couriers[ctx.datasetIndex]; const st=top6States[ctx.dataIndex];
+      const sub=ords.filter(r=>r.Courier===cv.courier&&r['Shipping State']===st);
+      const rt=sub.filter(r=>r.Status==='RTO').length;
+      return ` ${cv.courier} in ${st}: ${ctx.parsed.y}% RTO (${fmtN(rt)}/${fmtN(sub.length)})`;
+    }}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:gridLines,ticks:{font:tickFont,callback:v=>v+'%'},border:{display:false}}}}
+  });
+
+  // Courier × City — top 15 cities, stacked by courier
+  const cityGrpAll = groupBy(ords,'Shipping City');
+  const top15Cities= Object.entries(cityGrpAll).sort((a,b)=>b[1].length-a[1].length).slice(0,15).map(([k])=>k);
+  const cityTotals = top15Cities.map(ct=>cityGrpAll[ct]?.length||0);
+  mkChart('chart-courier-city',{type:'bar',
+    data:{labels:top15Cities,datasets:top5Couriers.map((c,i)=>({
+      label:c.courier,
+      data:top15Cities.map(ct=>ords.filter(r=>r.Courier===c.courier&&r['Shipping City']===ct).length),
+      backgroundColor:COURIER_COLORS[i]||BLUES[2], borderRadius:2
+    }))},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{labels:{font:{family:'DM Sans',size:10}}},tooltip:{callbacks:{label:function(ctx){
+      const ct=top15Cities[ctx.dataIndex]; const cityTot=cityTotals[ctx.dataIndex]||1;
+      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.x)} (${pct(ctx.parsed.x,cityTot)}% of ${ct})`;
+    }}}},
+      scales:{x:{stacked:true,grid:gridLines,ticks:{font:tickFont,color:'#9ca3af'},border:{display:false}},
+              y:{stacked:true,grid:{display:false},ticks:{font:{size:10},color:'#6b7280'}}}}
+  });
+
+  // Summary table
+  document.getElementById('tbl-couriers').innerHTML=`
+    <thead><tr><th>Courier</th><th>Orders</th><th>% of Total</th><th>Delivered</th><th>RTO</th><th>RTO%</th><th>Del%</th><th>Revenue</th></tr></thead>
+    <tbody>${couriers.map(c=>`<tr>
+      <td><strong>${c.courier}</strong></td>
+      <td>${c.total.toLocaleString('en-IN')}</td>
+      <td>${pct(c.total,grandTotal)}%</td>
+      <td>${c.delivered.toLocaleString('en-IN')}</td>
+      <td style="color:var(--rto-color)">${c.rto.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(c.rto_rate)}">${c.rto_rate}%</span></td>
+      <td>${c.delivery_rate}%</td>
+      <td>${fmtRupee(c.revenue)}</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ================================================================
+//  WAREHOUSE
+// ================================================================
+function renderWarehouse() {
+  const d = DASH;
+  const ords = applyFilters('warehouse');
+  const grandTotal = ords.length;
+  const whGrp = groupBy(ords,'Client Location');
+  const wh = Object.entries(whGrp).map(([k,v])=>({warehouse:k,...summarizeOrders(v)})).sort((a,b)=>b.total-a.total);
+  const shortNames = wh.map(w=>w.warehouse.replace('Era Botanics','EB').replace('Era-Botanics','EB'));
+
+  mkChart('chart-wh-bar',{type:'bar',
+    data:{labels:shortNames,datasets:[{label:'Orders',data:wh.map(w=>w.total),backgroundColor:BLUES[1],borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      return ` Orders: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,grandTotal)}% of total)`;
+    }}}},scales:{...baseScales}}
+  });
+  mkChart('chart-wh-rto',{type:'bar',
+    data:{labels:shortNames,datasets:[{label:'RTO Rate %',data:wh.map(w=>w.rto_rate),backgroundColor:wh.map(w=>w.rto_rate>=16?RTO_COLOR:BLUES[3]),borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const w=wh[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.y}%`,` (${fmtN(w.rto)} RTO of ${fmtN(w.total)})`];
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+  document.getElementById('tbl-warehouses').innerHTML=`
+    <thead><tr><th>Warehouse</th><th>Orders</th><th>% of Total</th><th>Delivered</th><th>RTO</th><th>RTO%</th><th>Revenue</th></tr></thead>
+    <tbody>${wh.map(w=>`<tr>
+      <td style="max-width:180px"><strong>${w.warehouse}</strong></td>
+      <td>${w.total.toLocaleString('en-IN')}</td>
+      <td>${pct(w.total,grandTotal)}%</td>
+      <td>${w.delivered.toLocaleString('en-IN')}</td>
+      <td style="color:var(--rto-color)">${w.rto.toLocaleString('en-IN')}</td>
+      <td><span class="rate-pill ${rateClass(w.rto_rate)}">${w.rto_rate}%</span></td>
+      <td>${fmtRupee(w.revenue)}</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ================================================================
+//  RTO INTELLIGENCE
+// ================================================================
+function renderRTO() {
+  const d = DASH;
+  const ords = applyFilters('rto');
+  const rtot = ords.length;
+  const rrto = ords.filter(r=>r.Status==='RTO').length;
+  const rtoRate = rtot>0 ? pct(rrto,rtot) : 0;
+
+  const stGrpR  = groupBy(ords,'Shipping State');
+  const filtStatesR = Object.entries(stGrpR).map(([k,v])=>({state:k,...summarizeOrders(v)}));
+  const skuGrpR = groupBy(ords,'SKU');
+  const filtSKUsR = Object.entries(skuGrpR).map(([k,v])=>{
+    const s=summarizeOrders(v);
+    const nm=(d.heatmap&&d.heatmap.sku_names[k])||k;
+    return {sku:k,name:nm.substring(0,55),...s};
+  });
+  const tierGrpR = groupBy(ords,'Tier');
+  const filtTiersR = ['Tier 1','Tier 2','Tier 3'].map(t=>{ const v=tierGrpR[t]||[]; return {tier:t,...summarizeOrders(v)}; });
+  const ctGrpR   = groupBy(ords,'Shipping City');
+  const filtCitiesR = Object.entries(ctGrpR).map(([k,v])=>({city:k,...summarizeOrders(v)}));
+
+  document.getElementById('rto-overall').textContent = rtoRate+'%';
+  document.getElementById('rto-count').textContent = rrto.toLocaleString('en-IN')+' orders returned';
+  const worstState=filtStatesR.filter(s=>s.total>=100).sort((a,b)=>b.rto_rate-a.rto_rate)[0];
+  document.getElementById('rto-worst-state').textContent    = worstState?worstState.state:'—';
+  document.getElementById('rto-worst-state-val').textContent= worstState?worstState.rto_rate+'% RTO ('+worstState.total+' orders)':'';
+  const worstSKU=filtSKUsR.filter(s=>s.total>=50).sort((a,b)=>b.rto_rate-a.rto_rate)[0];
+  document.getElementById('rto-worst-sku').textContent    = worstSKU?worstSKU.sku:'—';
+  document.getElementById('rto-worst-sku-val').textContent= worstSKU?worstSKU.rto_rate+'% RTO ('+worstSKU.total+' orders)':'';
+
+  const statesByRTO=filtStatesR.filter(s=>s.total>=100).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,15);
+  mkChart('chart-rto-states',{type:'bar',
+    data:{labels:statesByRTO.map(s=>s.state),datasets:[{label:'RTO Rate %',data:statesByRTO.map(s=>s.rto_rate),backgroundColor:statesByRTO.map(s=>s.rto_rate>=20?RTO_COLOR:s.rto_rate>=15?'#f59e0b':BLUES[3]),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const st=statesByRTO[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.x}%`,` ${fmtN(st.rto)} RTO of ${fmtN(st.total)} orders`];
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{size:11},color:'#6b7280'}}}}
+  });
+
+  const skusByRTO=filtSKUsR.filter(s=>s.total>=50).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,15);
+  mkChart('chart-rto-skus',{type:'bar',
+    data:{labels:skusByRTO.map(s=>s.sku),datasets:[{label:'RTO Rate %',data:skusByRTO.map(s=>s.rto_rate),backgroundColor:skusByRTO.map(s=>s.rto_rate>=20?RTO_COLOR:'#f59e0b'),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const sk=skusByRTO[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.x}%`,` ${fmtN(sk.rto)} RTO of ${fmtN(sk.total)} orders`];
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{family:'DM Mono',size:10},color:'#6b7280'}}}}
+  });
+
+  mkChart('chart-rto-tier',{type:'bar',
+    data:{labels:filtTiersR.map(t=>t.tier),datasets:[{label:'RTO Rate %',data:filtTiersR.map(t=>t.rto_rate),backgroundColor:[BLUES[1],BLUES[2],BLUES[3]],borderRadius:8,barThickness:50}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const t=filtTiersR[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.y}%`,` ${fmtN(t.rto)} RTO of ${fmtN(t.total)}`];
+    }}}},
+      scales:{...baseScales,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>v+'%'}}}}
+  });
+
+  const citiesByRTO=filtCitiesR.filter(c=>c.total>=100).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,15);
+  mkChart('chart-rto-cities',{type:'bar',
+    data:{labels:citiesByRTO.map(c=>c.city),datasets:[{label:'RTO Rate %',data:citiesByRTO.map(c=>c.rto_rate),backgroundColor:citiesByRTO.map(c=>c.rto_rate>=20?RTO_COLOR:'#f59e0b'),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      const ct=citiesByRTO[ctx.dataIndex];
+      return [` RTO Rate: ${ctx.parsed.x}%`,` ${fmtN(ct.rto)} RTO of ${fmtN(ct.total)}`];
+    }}}},
+      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
+              y:{grid:{display:false},ticks:{font:{size:11},color:'#6b7280'}}}}
+  });
+}
+
+// ================================================================
+//  ORDER STATUS
+// ================================================================
+function renderOrderStatus() {
+  const d = DASH;
+  const ords = applyFilters('order_status');
+  const grandTotal = ords.length;
+  // Use easycom-style status from _allOrders (we don't have it, use unified Status as proxy)
+  // Actually use d.order_statuses from precomputed (these are easycom statuses)
+  const os = d.order_statuses;
+  const osTotal = os.reduce((s,x)=>s+x.count,0);
+  const colors = [BLUES[1],BLUES[0],'#374151','#f59e0b','#6b7280',RTO_COLOR,'#9ca3af','#d1d5db'];
+
+  mkChart('chart-os-donut',{type:'doughnut',
+    data:{labels:os.map(x=>x.status),datasets:[{data:os.map(x=>x.count),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,cutout:'55%',plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
+      return ` ${ctx.label}: ${fmtN(ctx.parsed)} (${pct(ctx.parsed,osTotal)}%)`;
+    }}}}}
+  });
+  mkChart('chart-os-bar',{type:'bar',
+    data:{labels:os.map(x=>x.status),datasets:[{label:'Count',data:os.map(x=>x.count),backgroundColor:colors,borderRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){
+      return ` ${ctx.label||'Count'}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,osTotal)}%)`;
+    }}}},scales:{...baseScales}}
+  });
+  document.getElementById('tbl-order-status').innerHTML=`
+    <thead><tr><th>Easycom Status</th><th>Count</th><th>% of Total</th></tr></thead>
+    <tbody>${os.map(x=>`<tr>
+      <td><strong>${x.status}</strong></td>
+      <td>${x.count.toLocaleString('en-IN')}</td>
+      <td>${pct(x.count,osTotal)}%</td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ================================================================
+//  HEATMAP
+// ================================================================
+function heatmapColor(rate) {
+  if (rate===null||rate===undefined) return null;
+  if (rate===0) return '#e8f0fd';
+  if (rate<=10) { const t=rate/10; return lerpColor('#c6dcf8','#7bc47f',t); }
+  if (rate<=20) { const t=(rate-10)/10; return lerpColor('#7bc47f','#f59e0b',t); }
+  const t=Math.min((rate-20)/15,1); return lerpColor('#f59e0b','#d73a3a',t);
+}
+function lerpColor(a,b,t) {
+  const ah=parseInt(a.slice(1),16),bh=parseInt(b.slice(1),16);
+  const ar=(ah>>16)&255,ag=(ah>>8)&255,ab=ah&255;
+  const br=(bh>>16)&255,bg=(bh>>8)&255,bb=bh&255;
+  const r=Math.round(ar+(br-ar)*t).toString(16).padStart(2,'0');
+  const g=Math.round(ag+(bg-ag)*t).toString(16).padStart(2,'0');
+  const bv=Math.round(ab+(bb-ab)*t).toString(16).padStart(2,'0');
+  return `#${r}${g}${bv}`;
+}
+function textColor(rate) {
+  if (rate===null) return '';
+  if (rate===0) return '#1a56db';
+  if (rate<=8) return '#1c5e2a';
+  return 'rgba(255,255,255,0.95)';
+}
+
+function renderHeatmap() {
+  if (!DASH||!DASH.heatmap) return;
+  const hm=DASH.heatmap;
+  const minOrders=parseInt(document.getElementById('hm-min-orders')?.value)||1;
+  const monthPrefixes={'January':'2026-01','February':'2026-02','March':'2026-03'};
+  let dates=hm.dates;
+  if (heatmapMonth!=='All') { const p=monthPrefixes[heatmapMonth]; dates=dates.filter(d=>d.startsWith(p)); }
+  const months3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtDate(d) { const p=d.split('-'); return p[2]+' '+months3[parseInt(p[1])-1]; }
+
+  let tbl='<table class="heatmap-table"><thead><tr><th class="sku-col">SKU</th>';
+  dates.forEach(d=>{ tbl+=`<th title="${d}">${fmtDate(d)}</th>`; });
+  tbl+='</tr></thead><tbody>';
+  hm.skus.forEach(sku=>{
+    const hasData=dates.some(d=>{ const v=hm.pivot[`${sku}|${d}`]; return v&&v.total>=minOrders; });
+    if (!hasData) return;
+    const skuName=(hm.sku_names[sku]||sku).substring(0,35);
+    tbl+=`<tr><td class="sku-name-cell" title="${hm.sku_names[sku]||sku}"><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent-blue)">${sku}</span><br><span style="font-weight:400;color:var(--text-secondary);font-size:10px">${skuName}</span></td>`;
+    dates.forEach(d=>{
+      const v=hm.pivot[`${sku}|${d}`];
+      if (!v||v.total<minOrders) { tbl+='<td class="hm-empty"></td>'; }
+      else {
+        const color=heatmapColor(v.rto_rate);
+        const tc=textColor(v.rto_rate);
+        const display=v.rto_rate===0?'·':v.rto_rate.toFixed(0)+'%';
+        tbl+=`<td class="hm-cell" style="background:${color};color:${tc}" title="${sku} | ${d} | RTO: ${v.rto_rate}% (${v.rto}/${v.total})">${display}</td>`;
+      }
+    });
+    tbl+='</tr>';
+  });
+  tbl+='</tbody></table>';
+  document.getElementById('heatmap-container').innerHTML=tbl;
+}
+
+// ================================================================
+//  FILE UPLOAD
+// ================================================================
+function loadNewFile(input) {
+  const file=input.files[0];
+  if (!file) return;
+  document.getElementById('upload-status').textContent='Processing '+file.name+'...';
+  const reader=new FileReader();
+  reader.onload=function(e) {
+    try {
+      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
+      const mainSheet=wb.Sheets['Main'];
+      const pinSheet=wb.Sheets['Pincode Mapping'];
+      if (!mainSheet||!pinSheet) { alert('Missing sheets. Need "Main" and "Pincode Mapping".'); return; }
+      const main=XLSX.utils.sheet_to_json(mainSheet);
+      const pincodeRaw=XLSX.utils.sheet_to_json(pinSheet);
+      const pincodeMap={};
+      pincodeRaw.forEach(row=>{
+        const prefix=parseInt(row['First 3-Digit PIN Prefix']);
+        if (!isNaN(prefix)) pincodeMap[prefix]={tier:row['Tier Mapping'],city:row['Tier 1 City']};
+      });
+      const processed=main.map(row=>{
+        const zip=parseInt(row['Shipping Zip Code'])||0;
+        const pin3=Math.floor(zip/1000);
+        const ti=pincodeMap[pin3]||{tier:'Unknown',city:'N/A'};
+        const courierNorm={'delhivery ':'Delhivery','BLITZ':'Blitz','BLUEDART':'Bluedart','SELF':'SelfShip'};
+        return {...row,Tier:ti.tier,Tier1City:ti.city,Courier:courierNorm[row.Courier]||row.Courier||'Unknown'};
+      });
+      DASH=processData(processed);
+      document.getElementById('upload-status').textContent=`${file.name} · ${DASH.kpis.total_orders.toLocaleString('en-IN')} orders`;
+      renderAll();
+    } catch(err) { console.error(err); alert('Error: '+err.message); }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function processData(rows) {
+  const orderMap={};
+  rows.forEach(row=>{ const ref=row['Reference Code']; if (!orderMap[ref]) orderMap[ref]=row; });
+  const orders=Object.values(orderMap);
+  orders.forEach(r=>{
+    r._invoice=parseFloat(r['Order Invoice Amount'])||0;
+    r.Courier=r.Courier||r['Courier']||'Unknown';
+  });
+
+  const total=orders.length;
+  const delivered=orders.filter(r=>r.Status==='Delivered').length;
+  const rto=orders.filter(r=>r.Status==='RTO').length;
+  const inTransit=orders.filter(r=>r.Status==='In Transit').length;
+  const revenue=orders.reduce((s,r)=>s+r._invoice,0);
+
+  const skuMap={};
+  rows.forEach(row=>{ const sku=row.SKU; if (!skuMap[sku]) skuMap[sku]={sku,name:row['SKU Name']||'',item_qty:0}; skuMap[sku].item_qty+=parseInt(row['Item Quantity'])||0; });
+  const skuStatusMap={};
+  orders.forEach(r=>{
+    if (!skuStatusMap[r.SKU]) skuStatusMap[r.SKU]={Delivered:0,RTO:0,'In Transit':0,total:0};
+    skuStatusMap[r.SKU].total++;
+    if (r.Status==='Delivered') skuStatusMap[r.SKU].Delivered++;
+    else if (r.Status==='RTO') skuStatusMap[r.SKU].RTO++;
+    else if (r.Status==='In Transit') skuStatusMap[r.SKU]['In Transit']++;
+  });
+  const skus=Object.keys(skuMap).map(sku=>{
+    const sm=skuStatusMap[sku]||{total:0,Delivered:0,RTO:0,'In Transit':0};
+    return {sku,name:skuMap[sku].name.substring(0,60),total_orders:sm.total,item_qty:skuMap[sku].item_qty,
+      delivered:sm.Delivered,rto:sm.RTO,in_transit:sm['In Transit'],
+      rto_rate:sm.total>0?parseFloat((sm.RTO/sm.total*100).toFixed(2)):0,
+      delivery_rate:sm.total>0?parseFloat((sm.Delivered/sm.total*100).toFixed(2)):0};
+  }).sort((a,b)=>b.total_orders-a.total_orders);
+
+  function grpSumm(arr){const t=arr.length;const d=arr.filter(r=>r.Status==='Delivered').length;const rt=arr.filter(r=>r.Status==='RTO').length;const rev=arr.reduce((s,r)=>s+r._invoice,0);return {total:t,delivered:d,rto:rt,in_transit:arr.filter(r=>r.Status==='In Transit').length,rto_rate:t>0?parseFloat((rt/t*100).toFixed(2)):0,delivery_rate:t>0?parseFloat((d/t*100).toFixed(2)):0,revenue:parseFloat(rev.toFixed(0))};}
+  function grpBy(arr,key){const m={};arr.forEach(r=>{const k=r[key]||'Unknown';if(!m[k])m[k]=[];m[k].push(r);});return m;}
+
+  const states=Object.entries(grpBy(orders,'Shipping State')).map(([k,v])=>({state:k,...grpSumm(v)})).sort((a,b)=>b.total-a.total);
+  const cities=Object.entries(grpBy(orders,'Shipping City')).filter(([,v])=>v.length>=20).map(([k,v])=>({city:k,...grpSumm(v)})).sort((a,b)=>b.total-a.total).slice(0,50);
+  const tiers=Object.entries(grpBy(orders,'Tier')).map(([k,v])=>({tier:k,...grpSumm(v)}));
+  const t1=orders.filter(r=>r.Tier==='Tier 1');
+  const tier1cities=Object.entries(grpBy(t1,'Tier1City')).filter(([k])=>k!=='Tier 2/3').map(([k,v])=>({city:k,...grpSumm(v)})).sort((a,b)=>b.total-a.total);
+  const couriers=Object.entries(grpBy(orders,'Courier Aggregator Name')).map(([k,v])=>({courier:k,...grpSumm(v)}));
+  const warehouses=Object.entries(grpBy(orders,'Client Location')).map(([k,v])=>({warehouse:k,...grpSumm(v)})).sort((a,b)=>b.total-a.total);
+  const osList={};orders.forEach(r=>{const s=r['Order Status']||'Unknown';osList[s]=(osList[s]||0)+1;});
+  const order_statuses=Object.entries(osList).sort((a,b)=>b[1]-a[1]).map(([s,c])=>({status:s,count:c}));
+
+  const monthlyMap={};
+  orders.forEach(r=>{const m=r.Month||'Unknown';if(!monthlyMap[m])monthlyMap[m]=[];monthlyMap[m].push(r);});
+  const monthly={};
+  ['January','February','March'].forEach(m=>{
+    if (monthlyMap[m]){const g=monthlyMap[m];const s=grpSumm(g);monthly[m]={...s,in_transit:g.filter(r=>r.Status==='In Transit').length};}
+  });
+
+  const sku_month={};
+  orders.forEach(r=>{const key=`${r.SKU}|${r.Month}`;if(!sku_month[key])sku_month[key]={total:0,rto:0,delivered:0};sku_month[key].total++;if(r.Status==='RTO')sku_month[key].rto++;if(r.Status==='Delivered')sku_month[key].delivered++;});
+  Object.keys(sku_month).forEach(k=>{const v=sku_month[k];v.rto_rate=parseFloat((v.rto/v.total*100).toFixed(2));});
+
+  const tier_month={};
+  orders.forEach(r=>{const key=`${r.Tier}|${r.Month}`;if(!tier_month[key])tier_month[key]={total:0,rto:0};tier_month[key].total++;if(r.Status==='RTO')tier_month[key].rto++;});
+  Object.keys(tier_month).forEach(k=>{const v=tier_month[k];v.rto_rate=parseFloat((v.rto/v.total*100).toFixed(2));});
+
+  const daily={};
+  orders.forEach(r=>{let dt=r['Order Date'];if(dt instanceof Date)dt=dt.toISOString().split('T')[0];else if(typeof dt==='string')dt=dt.split('T')[0].split(' ')[0];if(!daily[dt])daily[dt]={total:0,rto:0,delivered:0};daily[dt].total++;if(r.Status==='RTO')daily[dt].rto++;if(r.Status==='Delivered')daily[dt].delivered++;});
+
+  // Heatmap
+  const hmPivot={};const hmDates=new Set();
+  const refDate={};rows.forEach(row=>{let dt=row['Order Date'];if(dt instanceof Date)dt=dt.toISOString().split('T')[0];else if(typeof dt==='string')dt=dt.split('T')[0].split(' ')[0];if(dt)refDate[row['Reference Code']]=dt;});
+  orders.forEach(r=>{const dt=refDate[r['Reference Code']];if(!dt)return;hmDates.add(dt);const key=`${r.SKU}|${dt}`;if(!hmPivot[key])hmPivot[key]={total:0,rto:0};hmPivot[key].total++;if(r.Status==='RTO')hmPivot[key].rto++;});
+  const hmPF={};Object.entries(hmPivot).forEach(([k,v])=>{hmPF[k]={total:v.total,rto:v.rto,rto_rate:parseFloat((v.rto/v.total*100).toFixed(1))};});
+  const hmSkuNames={};orders.forEach(r=>{if(r['SKU Name'])hmSkuNames[r.SKU]=r['SKU Name'];});
+  const heatmap={dates:Array.from(hmDates).sort().reverse(),skus:Object.keys(skuMap),sku_names:hmSkuNames,pivot:hmPF};
+
+  return {
+    kpis:{total_orders:total,delivered,rto,in_transit:inTransit,total_revenue:parseFloat(revenue.toFixed(0)),delivery_rate:parseFloat((delivered/total*100).toFixed(2)),rto_rate:parseFloat((rto/total*100).toFixed(2)),avg_order_value:parseFloat((revenue/total).toFixed(2)),cancelled:orders.filter(r=>r.Status==='Cancelled').length,not_picked:orders.filter(r=>r.Status==='Not Picked').length,lost:orders.filter(r=>r.Status==='Lost').length},
+    monthly,skus,states,cities,tiers,tier1cities,couriers,warehouses,order_statuses,sku_month,tier_month,daily,heatmap,
+    _allOrders:orders
+  };
+}
+
+
+// ================================================================
+//  INDIA MAP — ECharts Choropleth + Bubble Overlay
+// ================================================================
+
+// ── State name normalizer ─────────────────────────────────────────
+const STATE_ALIASES = {
+  'Himachal Pradesh ': 'Himachal Pradesh',
+  'Telangana ':        'Telangana',
+  'West Bengal ':      'West Bengal',
+  'jharkhand':         'Jharkhand',
+  'Dadra & Nagar Haveli and Daman & Diu': 'Dadra and Nagar Haveli and Daman and Diu',
+  'Andaman & Nicobar Islands': 'Andaman and Nicobar',
+  'Jammu & Kashmir':   'Jammu and Kashmir',
+};
+function normState(s) { return STATE_ALIASES[s] || s; }
+
+// ── Metric toggle state ───────────────────────────────────────────
+let mapMetric = 'rto'; // 'rto' | 'volume'
+let echartsInstance = null;
+let mapGeoLoaded = false;
+let mapGeoJSON = null;
+
+// ── Color scales ──────────────────────────────────────────────────
+const VOLUME_COLORS = ['#f0fdf4','#86efac','#22c55e','#15803d','#14532d'];
+const RTO_COLORS    = ['#fff7f7','#fca5a5','#ef4444','#b91c1c','#7f1d1d'];
+
+// ── Load ECharts from CDN if not already loaded ───────────────────
+function ensureECharts(cb) {
+  if (window.echarts) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js';
+  s.onload = cb;
+  s.onerror = () => {
+    document.getElementById('india-map-container').innerHTML =
+      '<div style="padding:40px;text-align:center;color:#6b7280;font-size:13px">'+
+      '⚠ Could not load map library (ECharts). Please check your internet connection.</div>';
+  };
+  document.head.appendChild(s);
+}
+
+// ── Load GeoJSON ──────────────────────────────────────────────────
+function loadIndiaGeoJSON(cb) {
+  if (mapGeoJSON) { cb(mapGeoJSON); return; }
+  // Try datameet first, fallback to another public mirror
+  const urls = [
+    'https://raw.githubusercontent.com/datameet/maps/master/States/india_states.geojson',
+    'https://raw.githubusercontent.com/geohacker/india/master/state/india_state.geojson',
+  ];
+  function tryNext(i) {
+    if (i >= urls.length) {
+      // Ultimate fallback: use embedded minimal GeoJSON
+      cb(INDIA_MINIMAL_GEO);
+      return;
+    }
+    fetch(urls[i])
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(geo => {
+        // Normalize property names — different sources use different keys
+        geo.features.forEach(f => {
+          const p = f.properties;
+          // Try common property keys for state name
+          const name = p.NAME_1 || p.ST_NM || p.name || p.NAME || p.state || '';
+          p._stateName = name;
+        });
+        mapGeoJSON = geo;
+        cb(geo);
+      })
+      .catch(() => tryNext(i + 1));
+  }
+  tryNext(0);
+}
+
+// ── Embedded minimal GeoJSON fallback ────────────────────────────
+// Compact but accurate enough for state-level choropleth
+// Each feature has correct centroid coordinates for bubble placement
+const INDIA_MINIMAL_GEO = (function() {
+  // Simplified state boundaries — enough for recognizable choropleth
+  // Format: [state_name, [[lon,lat], ...polygon points...]]
+  const states = [
+    ["Jammu and Kashmir",[[73.9,36.9],[75.4,37.1],[77.8,36.0],[79.1,34.5],[78.7,33.2],[77.0,32.5],[75.6,32.8],[74.5,33.9],[73.9,36.9]]],
+    ["Ladakh",[[76.7,35.7],[79.4,35.5],[80.5,34.6],[79.1,34.5],[77.8,36.0],[76.7,35.7]]],
+    ["Himachal Pradesh",[[75.6,32.8],[77.0,32.5],[78.7,33.2],[78.5,31.5],[77.0,30.5],[75.9,31.1],[75.6,32.8]]],
+    ["Punjab",[[73.9,31.5],[75.6,32.8],[75.9,31.1],[76.5,30.7],[75.1,29.9],[73.9,30.2],[73.9,31.5]]],
+    ["Haryana",[[75.1,29.9],[76.5,30.7],[77.4,30.9],[77.2,29.0],[76.3,28.4],[75.1,29.0],[75.1,29.9]]],
+    ["Delhi",[[76.8,28.9],[77.3,29.0],[77.5,28.4],[77.1,28.4],[76.8,28.9]]],
+    ["Rajasthan",[[69.5,24.0],[72.5,23.0],[74.0,24.7],[75.5,24.5],[77.2,26.0],[76.3,28.4],[77.2,29.0],[75.1,29.0],[73.9,30.2],[73.0,28.0],[70.4,26.5],[69.5,24.0]]],
+    ["Uttar Pradesh",[[77.2,29.0],[78.7,30.5],[80.5,29.5],[83.0,27.5],[84.5,27.0],[84.0,25.0],[82.0,25.0],[80.5,24.5],[78.5,26.5],[77.2,26.0],[76.3,28.4],[77.2,29.0]]],
+    ["Uttarakhand",[[77.4,30.9],[79.0,31.5],[80.5,29.5],[78.7,30.5],[77.4,30.9]]],
+    ["Bihar",[[84.0,25.0],[86.0,25.2],[88.0,25.5],[87.5,24.0],[85.5,23.5],[84.0,23.5],[83.5,24.5],[84.0,25.0]]],
+    ["Jharkhand",[[83.5,24.5],[84.0,23.5],[85.5,23.5],[87.5,24.0],[87.0,22.0],[85.5,21.0],[83.0,22.0],[82.5,23.5],[83.5,24.5]]],
+    ["West Bengal",[[87.5,24.0],[88.5,26.5],[89.9,26.9],[89.0,25.0],[88.0,25.5],[87.5,24.0]]],
+    ["Sikkim",[[88.0,28.0],[88.9,28.1],[88.9,27.0],[88.0,27.0],[88.0,28.0]]],
+    ["Assam",[[89.9,26.9],[91.5,27.5],[94.5,27.0],[95.5,26.0],[93.0,24.5],[91.5,24.5],[89.0,25.0],[89.9,26.9]]],
+    ["Arunachal Pradesh",[[91.5,27.5],[96.0,29.5],[97.4,28.0],[94.5,27.0],[91.5,27.5]]],
+    ["Nagaland",[[93.0,26.5],[95.5,27.5],[96.0,26.0],[93.8,25.5],[93.0,26.5]]],
+    ["Manipur",[[93.8,25.5],[94.8,25.0],[94.5,23.5],[93.0,23.5],[93.0,25.0],[93.8,25.5]]],
+    ["Mizoram",[[92.3,24.5],[93.5,24.5],[93.5,22.0],[92.3,22.0],[92.3,24.5]]],
+    ["Tripura",[[91.2,24.5],[92.3,24.5],[92.3,22.5],[91.2,22.5],[91.2,24.5]]],
+    ["Meghalaya",[[89.0,25.0],[91.5,25.5],[92.5,25.0],[91.5,24.5],[89.0,24.5],[89.0,25.0]]],
+    ["Odisha",[[82.0,22.0],[85.5,23.5],[87.0,22.0],[87.0,20.5],[85.5,19.0],[83.5,18.0],[82.0,19.5],[82.0,22.0]]],
+    ["Chhattisgarh",[[80.5,24.5],[82.0,24.5],[83.0,22.0],[82.5,20.5],[80.5,21.0],[79.0,21.0],[79.0,23.0],[80.5,24.5]]],
+    ["Madhya Pradesh",[[74.5,24.0],[76.3,26.5],[78.5,26.5],[80.5,24.5],[79.0,23.0],[79.0,21.0],[76.0,21.5],[74.0,22.0],[74.5,24.0]]],
+    ["Gujarat",[[68.2,23.5],[70.5,24.0],[72.5,25.5],[73.9,24.5],[72.0,22.5],[73.0,20.5],[72.5,20.0],[70.0,20.5],[68.5,21.5],[68.2,23.5]]],
+    ["Maharashtra",[[74.0,22.0],[76.0,21.5],[79.0,21.0],[80.5,21.0],[80.0,18.0],[78.0,18.0],[76.5,17.5],[74.5,17.0],[73.0,17.5],[72.5,20.0],[73.0,20.5],[74.0,22.0]]],
+    ["Goa",[[73.7,15.8],[74.3,15.5],[74.2,14.9],[73.6,14.9],[73.7,15.8]]],
+    ["Karnataka",[[74.5,17.0],[76.5,17.5],[78.0,18.0],[78.5,15.0],[77.5,13.0],[76.0,12.0],[74.5,12.5],[74.0,14.0],[74.5,17.0]]],
+    ["Andhra Pradesh",[[79.0,21.0],[80.5,21.0],[82.0,19.5],[82.0,18.0],[80.0,18.0],[78.5,15.0],[78.0,18.0],[79.0,21.0]]],
+    ["Telangana",[[78.0,18.0],[80.0,18.0],[82.0,18.0],[80.5,18.0],[80.5,21.0],[79.0,21.0],[79.0,17.5],[78.0,17.5],[78.0,18.0]]],
+    ["Tamil Nadu",[[77.5,13.0],[78.5,15.0],[80.3,13.5],[80.3,12.0],[79.9,10.0],[78.2,8.5],[77.5,8.5],[77.0,10.0],[77.5,13.0]]],
+    ["Kerala",[[76.0,12.0],[77.5,13.0],[77.0,10.0],[77.5,8.5],[76.8,8.3],[76.0,10.0],[76.0,12.0]]],
+    ["Puducherry",[[79.7,12.0],[80.0,12.0],[80.0,11.7],[79.7,11.7],[79.7,12.0]]],
+    ["Andaman and Nicobar",[[92.0,13.5],[93.0,13.5],[93.0,10.0],[92.0,10.0],[92.0,13.5]]],
+    ["Chandigarh",[[76.7,30.8],[76.9,30.8],[76.9,30.6],[76.7,30.6],[76.7,30.8]]],
+    ["Dadra and Nagar Haveli and Daman and Diu",[[72.8,20.5],[73.1,20.5],[73.1,20.1],[72.8,20.1],[72.8,20.5]]],
+    ["Sikkim",[[88.2,27.8],[88.9,28.1],[88.9,27.1],[88.2,27.1],[88.2,27.8]]],
+  ];
+
+  return {
+    type: 'FeatureCollection',
+    features: states.map(([name, coords]) => ({
+      type: 'Feature',
+      properties: { _stateName: name },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [coords]
+      }
+    }))
+  };
+})();
+
+// ── State name matcher — fuzzy match dataset name to GeoJSON name ─
+function matchToGeoName(datasetName, geoNames) {
+  const n = normState(datasetName).toLowerCase().trim();
+  // Exact match first
+  const exact = geoNames.find(g => g.toLowerCase().trim() === n);
+  if (exact) return exact;
+  // Partial match
+  const partial = geoNames.find(g => {
+    const gl = g.toLowerCase().trim();
+    return gl.includes(n) || n.includes(gl);
+  });
+  return partial || null;
+}
+
+// ── Main render entry point ───────────────────────────────────────
+function initIndiaMap() {
+  const container = document.getElementById('india-map-container');
+  if (!container) return;
+  // Show loading state
+  container.innerHTML = '<div style="height:520px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;flex-direction:column;gap:10px"><div style="width:32px;height:32px;border:2px solid #e2e5ea;border-top-color:#1a56db;border-radius:50%;animation:_spin 0.8s linear infinite"></div>Loading map…</div>';
+
+  ensureECharts(() => {
+    loadIndiaGeoJSON(geo => {
+      mapGeoJSON = geo;
+      mapGeoLoaded = true;
+      echarts.registerMap('india', geo);
+      renderEChartsMap();
+    });
+  });
+}
+
+function renderEChartsMap() {
+  if (!mapGeoLoaded || !window.echarts) return;
+  const container = document.getElementById('india-map-container');
+  if (!container) return;
+
+  // Compute data
+  const ords = applyFilters('geo');
+  const grandTotal = ords.length;
+  const stGrp = groupBy(ords, 'Shipping State');
+
+  // Build per-state stats
+  const stateStats = {};
+  let maxVol = 0, maxRTO = 0;
+  for (const [rawName, orders] of Object.entries(stGrp)) {
+    const name = normState(rawName);
+    if (!stateStats[name]) stateStats[name] = { total:0, rto:0, del:0 };
+    const s = stateStats[name];
+    s.total  += orders.length;
+    s.rto    += orders.filter(r => r.Status === 'RTO').length;
+    s.del    += orders.filter(r => r.Status === 'Delivered').length;
+  }
+  for (const s of Object.values(stateStats)) {
+    s.rto_rate  = s.total > 0 ? +(s.rto  / s.total * 100).toFixed(2) : 0;
+    s.vol_pct   = grandTotal > 0 ? +(s.total / grandTotal * 100).toFixed(2) : 0;
+    maxVol = Math.max(maxVol, s.vol_pct);
+    maxRTO = Math.max(maxRTO, s.rto_rate);
+  }
+
+  // Get GeoJSON feature names
+  const geoNames = mapGeoJSON.features.map(f => f.properties._stateName).filter(Boolean);
+
+  // Build choropleth data
+  const choroplethData = geoNames.map(geoName => {
+    // Find matching dataset name
+    const matched = Object.entries(stateStats).find(([k]) =>
+      matchToGeoName(k, [geoName]) === geoName || geoName === normState(k)
+    );
+    if (!matched) return { name: geoName, value: 0, _hasData: false };
+    const [, stats] = matched;
+    const val = mapMetric === 'rto' ? stats.rto_rate : stats.vol_pct;
+    return { name: geoName, value: +val.toFixed(2), ...stats, _hasData: true };
+  });
+
+  // Build bubble data — top 15 states by order volume
+  const topStates = Object.entries(stateStats)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 15);
+
+  // Compute geo centroids from GeoJSON for bubble placement
+  function centroid(feature) {
+    const coords = feature.geometry.type === 'Polygon'
+      ? feature.geometry.coordinates[0]
+      : feature.geometry.coordinates[0][0]; // MultiPolygon
+    const n = coords.length;
+    const lon = coords.reduce((s, c) => s + c[0], 0) / n;
+    const lat = coords.reduce((s, c) => s + c[1], 0) / n;
+    return [lon, lat];
+  }
+
+  const featureMap = {};
+  mapGeoJSON.features.forEach(f => {
+    if (f.properties._stateName) featureMap[f.properties._stateName] = f;
+  });
+
+  const rtoData   = [], volData = [];
+  topStates.forEach(([rawName, stats]) => {
+    const geoName = geoNames.find(g => normState(rawName) === g || g.toLowerCase().includes(normState(rawName).toLowerCase().slice(0,8)));
+    const feat = geoName ? featureMap[geoName] : null;
+    if (!feat) return;
+    const [lon, lat] = centroid(feat);
+    const tooltip = `${rawName}\nOrders: ${stats.total.toLocaleString('en-IN')} (${stats.vol_pct}%)\nRTO: ${stats.rto_rate}%`;
+    rtoData.push({ name: rawName, value: [lon, lat, stats.rto_rate], volPct: stats.vol_pct, total: stats.total, rtoRate: stats.rto_rate });
+    volData.push({ name: rawName, value: [lon, lat, stats.vol_pct],  volPct: stats.vol_pct, total: stats.total, rtoRate: stats.rto_rate });
+  });
+
+  // Destroy previous instance if exists
+  if (echartsInstance) { echartsInstance.dispose(); echartsInstance = null; }
+  container.innerHTML = '';
+  container.style.height = '540px';
+
+  echartsInstance = echarts.init(container, null, { renderer: 'canvas' });
+
+  const isRTO = mapMetric === 'rto';
+  const maxVal = isRTO ? maxRTO : maxVol;
+  const colorRange = isRTO ? ['#fff5f5','#feb2b2','#fc8181','#f56565','#e53e3e','#c53030','#9b2c2c'] : ['#f0fff4','#c6f6d5','#9ae6b4','#68d391','#48bb78','#38a169','#276749'];
+  const metricLabel = isRTO ? 'RTO Rate %' : 'Order Volume %';
+
+  const option = {
+    backgroundColor: '#f8fafc',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(22,28,40,0.96)',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      padding: [10, 14],
+      textStyle: { color: '#fff', fontSize: 12, fontFamily: 'DM Sans, sans-serif' },
+      formatter: function(params) {
+        if (!params.data || !params.data._hasData) {
+          return `<div style="font-weight:600;margin-bottom:4px">${params.name || params.data?.name}</div><div style="color:rgba(255,255,255,0.5);font-size:11px">No orders in this period</div>`;
+        }
+        const d = params.data;
+        const total = d.total || 0;
+        const volP  = d.vol_pct || d.volPct || 0;
+        const rtoR  = d.rto_rate || d.rtoRate || 0;
+        const del   = d.del || 0;
+        return `<div style="font-weight:600;font-size:13px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:6px">${d.name || params.name}</div>
+<div style="display:grid;grid-template-columns:auto auto;gap:3px 14px;font-size:11.5px">
+  <span style="color:rgba(255,255,255,0.55)">Orders</span><span style="color:#93c5fd;font-weight:600">${total.toLocaleString('en-IN')}</span>
+  <span style="color:rgba(255,255,255,0.55)">Volume Share</span><span style="color:#6ee7b7;font-weight:600">${+volP.toFixed(1)}%</span>
+  <span style="color:rgba(255,255,255,0.55)">Delivered</span><span style="color:#86efac;font-weight:600">${(del||0).toLocaleString('en-IN')}</span>
+  <span style="color:rgba(255,255,255,0.55)">RTO Rate</span><span style="color:#fca5a5;font-weight:600">${+rtoR.toFixed(1)}%</span>
+</div>`;
+      }
+    },
+    visualMap: {
+      min: 0,
+      max: +maxVal.toFixed(1),
+      text: [maxVal.toFixed(1)+'%', '0%'],
+      realtime: false,
+      calculable: true,
+      inRange: { color: colorRange },
+      textStyle: { color: '#6b7280', fontFamily: 'DM Sans, sans-serif', fontSize: 11 },
+      left: 12,
+      bottom: 30,
+      itemWidth: 14,
+      itemHeight: 90,
+    },
+    series: [
+      // ── Choropleth layer ──
+      {
+        name: metricLabel,
+        type: 'map',
+        map: 'india',
+        roam: true,
+        emphasis: {
+          label: { show: true, color: '#1e293b', fontFamily: 'DM Sans, sans-serif', fontSize: 11, fontWeight: 600 },
+          itemStyle: { areaColor: '#bfdbfe', shadowBlur: 10, shadowColor: 'rgba(59,130,246,0.3)' }
+        },
+        select: { disabled: true },
+        itemStyle: {
+          areaColor: '#f1f5f9',
+          borderColor: '#cbd5e1',
+          borderWidth: 0.8,
+        },
+        label: {
+          show: false,
+          color: '#475569',
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: 9,
+        },
+        data: choroplethData,
+      },
+      // ── Volume bubbles (green) — top 15 states ──
+      {
+        name: 'Order Volume',
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        data: volData.map(d => ({
+          ...d,
+          symbolSize: Math.max(10, Math.min(52, 10 + (d.value[2] / maxVol) * 42)),
+          itemStyle: {
+            color: 'rgba(34,197,94,0.75)',
+            borderColor: 'rgba(22,163,74,0.9)',
+            borderWidth: 1.5,
+            shadowBlur: 6,
+            shadowColor: 'rgba(22,163,74,0.3)',
+          }
+        })),
+        encode: { value: 2 },
+        label: { show: false },
+        zlevel: 2,
+      },
+      // ── RTO bubbles (red) — top 15 states ──
+      {
+        name: 'RTO Rate',
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        data: rtoData.map(d => ({
+          ...d,
+          symbolSize: Math.max(8, Math.min(44, 8 + (d.value[2] / maxRTO) * 36)),
+          itemStyle: {
+            color: 'rgba(239,68,68,0.70)',
+            borderColor: 'rgba(185,28,28,0.9)',
+            borderWidth: 1.5,
+            shadowBlur: 6,
+            shadowColor: 'rgba(215,58,58,0.3)',
+          }
+        })),
+        encode: { value: 2 },
+        label: { show: false },
+        zlevel: 3,
+      },
+    ],
+    geo: {
+      map: 'india',
+      roam: true,
+      center: [82.8, 22.5],
+      zoom: 1.15,
+      itemStyle: { borderColor: 'transparent' },
+      emphasis: { itemStyle: { borderColor: 'transparent' } },
+      silent: true,
+      // hidden underlay for scatter coordinate system
+    },
+    legend: {
+      data: ['Order Volume','RTO Rate'],
+      bottom: 10,
+      right: 16,
+      orient: 'horizontal',
+      textStyle: { color: '#6b7280', fontSize: 11, fontFamily: 'DM Sans, sans-serif' },
+      itemWidth: 12, itemHeight: 12,
+      formatter: name => name === 'Order Volume' ? '🟢 ' + name + ' %' : '🔴 ' + name + ' %',
+    },
+  };
+
+  echartsInstance.setOption(option);
+
+  // ── Subtle opacity pulse animation ───────────────────────────────
+  let pulseDir = 1, pulseVal = 0.75, pulseTimer = null;
+  clearInterval(pulseTimer);
+  pulseTimer = setInterval(() => {
+    if (!echartsInstance) { clearInterval(pulseTimer); return; }
+    // Check if map is still visible (avoid updates when hidden)
+    const container = document.getElementById('india-map-container');
+    if (!container || container.closest('#geo-map-view')?.style.display === 'none') return;
+    pulseVal += pulseDir * 0.04;
+    if (pulseVal >= 0.9) pulseDir = -1;
+    if (pulseVal <= 0.55) pulseDir = 1;
+    echartsInstance.setOption({
+      series: [
+        { name:'Order Volume', data: volData.map(d => ({
+            ...d,
+            symbolSize: Math.max(10, Math.min(52, 10 + (d.value[2]/maxVol)*42)),
+            itemStyle: { color: `rgba(34,197,94,${pulseVal})`, borderColor:'rgba(22,163,74,0.9)', borderWidth:1.5, shadowBlur:6, shadowColor:'rgba(22,163,74,0.3)' }
+          }))
+        },
+        { name:'RTO Rate', data: rtoData.map(d => ({
+            ...d,
+            symbolSize: Math.max(8, Math.min(44, 8 + (d.value[2]/maxRTO)*36)),
+            itemStyle: { color: `rgba(239,68,68,${pulseVal - 0.05})`, borderColor:'rgba(185,28,28,0.9)', borderWidth:1.5, shadowBlur:6, shadowColor:'rgba(215,58,58,0.3)' }
+          }))
+        }
+      ]
+    }, false); // false = merge, no full re-render
+  }, 80);
+
+  // Store ref for cleanup
+  window._mapPulseTimer = pulseTimer;
+
+  // Resize observer
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => {
+      if (echartsInstance) echartsInstance.resize();
+    });
+    ro.observe(container);
+  }
+}
+
+function setMapMetric(metric, btn) {
+  mapMetric = metric;
+  document.querySelectorAll('.map-metric-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEChartsMap();
+}
+
+function updateMapBubbles() {
+  if (mapGeoLoaded) renderEChartsMap();
+}
+
+// ================================================================
+//  DECODE COMPRESSED ORDERS
+// ================================================================
+function decodeOrders(data) {
+  if (!data._ordersVocabs||!data._ordersRows) return data;
+  const vocabs=data._ordersVocabs;
+  const rev={};
+  const fields=['st','m','ss','sc','sku','wh','ca','t','tc'];
+  fields.forEach(f=>{ rev[f]={}; Object.entries(vocabs[f]).forEach(([v,i])=>{ rev[f][i]=v; }); });
+  const revCo={};
+  if (vocabs.co) Object.entries(vocabs.co).forEach(([v,i])=>{ revCo[i]=v; });
+  data._allOrders=data._ordersRows.map(row=>({
+    Status:                    rev.st[row[0]]||'',
+    Month:                     rev.m[row[1]] ||'',
+    'Shipping State':          rev.ss[row[2]]||'',
+    'Shipping City':           rev.sc[row[3]]||'',
+    SKU:                       rev.sku[row[4]]||'',
+    'Client Location':         rev.wh[row[5]]||'',
+    'Courier Aggregator Name': rev.ca[row[6]]||'',
+    Tier:                      rev.t[row[7]] ||'',
+    Tier1City:                 rev.tc[row[8]]||'',
+    _invoice:                  row[9]/100,
+    Courier:                   revCo[row[10]]||'',
+    _dateInt:                  row[11]||0
+  }));
+  delete data._ordersVocabs;
+  delete data._ordersRows;
+  return data;
+}
+</script>
+<script>
+// ================================================================
+//  LOAD DATA + INIT
+// ================================================================
+async function loadData() {
+  const urls = [
+    './dashboard_data.json',
+    'dashboard_data.json',
+  ];
+  let lastErr;
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching ' + url);
+      return await res.json();
+    } catch(e) {
+      lastErr = e;
+    }
+  }
+  // All attempts failed — show diagnostic
+  const msg = [
+    '<div style="padding:48px;font-family:sans-serif;max-width:600px;margin:auto">',
+    '<h2 style="color:#d73a3a;margin-bottom:12px">&#9888; Dashboard data not found</h2>',
+    '<p style="color:#374151;margin-bottom:16px">Could not load <code>dashboard_data.json</code>. Error: <b>' + lastErr.message + '</b></p>',
+    '<p style="color:#374151;margin-bottom:8px"><b>Make sure both files are in the same GitHub repo folder:</b></p>',
+    '<ul style="color:#374151;line-height:2">',
+    '<li><code>era_botanics_dashboard_v2.html</code></li>',
+    '<li><code>dashboard_data.json</code></li>',
+    '</ul>',
+    '<p style="color:#6b7280;margin-top:16px;font-size:13px">Tip: Check your repo on github.com and confirm both files are visible at the root level.</p>',
+    '</div>'
+  ].join('');
+  document.body.innerHTML = msg;
+  throw lastErr;
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  // Show loading spinner
+  const spinner = document.createElement('div');
+  spinner.id = 'init-spinner';
+  spinner.style.position = 'fixed';
+  spinner.style.inset = '0';
+  spinner.style.background = '#f4f5f7';
+  spinner.style.display = 'flex';
+  spinner.style.alignItems = 'center';
+  spinner.style.justifyContent = 'center';
+  spinner.style.flexDirection = 'column';
+  spinner.style.gap = '16px';
+  spinner.style.zIndex = '9999';
+  spinner.innerHTML = [
+    '<style>@keyframes _spin{to{transform:rotate(360deg)}}</style>',
+    '<div style="width:44px;height:44px;border:3px solid #e2e5ea;border-top-color:#1a56db;border-radius:50%;animation:_spin 0.8s linear infinite"></div>',
+    '<div style="color:#5a6275;font-size:14px;font-weight:500;font-family:sans-serif">Loading dashboard data\u2026</div>'
+  ].join('');
+  document.body.appendChild(spinner);
+
+  try {
+    const rawData = await loadData();
+    DASH = decodeOrders(rawData);
+    spinner.remove();
+    renderAll();
+  } catch(e) {
+    // loadData already replaced body with error message
+  }
+});
+
+</script>
+
+
+</body>
+</html>
