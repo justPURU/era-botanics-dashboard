@@ -393,6 +393,11 @@
   /* ---- COURIER SCORECARDS ---- */
   .courier-kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
 
+
+  /* ---- MAP METRIC BUTTONS ---- */
+  .map-metric-btn { transition: all 0.2s; }
+  .map-metric-btn.active { box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+
   /* ---- RESPONSIVE FALLBACK ---- */
   @media (max-width: 900px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -781,6 +786,7 @@
       <div class="tab-row" id="geo-tabs">
         <div class="tab active" onclick="switchGeoTab('state', this)">State View</div>
         <div class="tab" onclick="switchGeoTab('city', this)">City View</div>
+        <div class="tab" onclick="switchGeoTab('map', this)">&#127757; India Map</div>
       </div>
 
       <!-- State View -->
@@ -804,6 +810,45 @@
           <div class="table-scroll" style="max-height:420px">
             <table class="data-table" id="tbl-states"></table>
           </div>
+        </div>
+      </div>
+
+      <!-- Map View -->
+      <div id="geo-map-view" style="display:none">
+        <div class="card" style="padding:16px 20px">
+          <!-- Header row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div class="card-title" style="margin-bottom:3px">India State Performance Map</div>
+              <div style="font-size:11.5px;color:var(--text-secondary)">Choropleth fill + bubble overlay · Top 15 states · Hover for details</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <!-- Metric toggle -->
+              <div style="display:flex;background:var(--gray-6);border-radius:20px;padding:3px;border:1px solid var(--border)">
+                <button class="map-metric-btn active" onclick="setMapMetric('rto',this)"
+                  style="padding:5px 14px;border-radius:16px;border:none;font-size:11.5px;font-weight:500;cursor:pointer;background:#d73a3a;color:#fff;font-family:'DM Sans',sans-serif;transition:all 0.2s">
+                  🔴 RTO %
+                </button>
+                <button class="map-metric-btn" onclick="setMapMetric('volume',this)"
+                  style="padding:5px 14px;border-radius:16px;border:none;font-size:11.5px;font-weight:500;cursor:pointer;background:transparent;color:var(--text-secondary);font-family:'DM Sans',sans-serif;transition:all 0.2s">
+                  🟢 Volume %
+                </button>
+              </div>
+              <!-- Legend -->
+              <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--text-secondary);padding:5px 12px;background:var(--gray-6);border-radius:20px;border:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;opacity:0.8"></div>
+                  <span>RTO Bubbles</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;opacity:0.8"></div>
+                  <span>Volume Bubbles</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ECharts container -->
+          <div id="india-map-container" style="width:100%;height:540px;border-radius:8px;overflow:hidden;border:1px solid var(--border-light)"></div>
         </div>
       </div>
 
@@ -1621,64 +1666,134 @@ function renderTrends() {
 // ================================================================
 //  SKU PAGE
 // ================================================================
-function renderSKUPage() {
+// Compute per-SKU stats from live filtered orders (respects date + month filters)
+function computeSkuStats(ords) {
   const d = DASH;
-  const sel = document.getElementById('sku-select');
-  sel.innerHTML = d.skus.map(s=>`<option value="${s.sku}">${s.sku} — ${s.name.substring(0,45)}</option>`).join('');
-  updateSKUPage();
+  const skuGrp = groupBy(ords, 'SKU');
+  // Build item_qty from precomputed skus list (not affected by date filter)
+  const qtyMap = {};
+  d.skus.forEach(s => { qtyMap[s.sku] = s.item_qty; });
+  const nameMap = {};
+  d.skus.forEach(s => { nameMap[s.sku] = s.name; });
 
-  // All SKUs RTO
-  const filtered = d.skus.filter(s=>s.total_orders>=50).sort((a,b)=>b.rto_rate-a.rto_rate).slice(0,30);
-  mkChart('chart-sku-rto-all',{type:'bar',
-    data:{labels:filtered.map(s=>s.sku),datasets:[{label:'RTO Rate %',data:filtered.map(s=>s.rto_rate),backgroundColor:filtered.map(s=>s.rto_rate>=20?RTO_COLOR:s.rto_rate>=12?'#f59e0b':BLUES[2]),borderRadius:4}]},
-    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` RTO Rate: ${ctx.parsed.x}%`}}},
-      scales:{x:{grid:gridLines,ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'},border:{display:false}},
-              y:{grid:{display:false},ticks:{font:{family:'DM Mono',size:10},color:'#6b7280'}}}}
-  });
+  return Object.entries(skuGrp).map(([sku, rows]) => {
+    const n   = rows.length;
+    const del = rows.filter(r => r.Status === 'Delivered').length;
+    const rt  = rows.filter(r => r.Status === 'RTO').length;
+    const tr  = rows.filter(r => r.Status === 'In Transit').length;
+    return {
+      sku,
+      name:          nameMap[sku] || sku,
+      total_orders:  n,
+      item_qty:      qtyMap[sku]  || 0,
+      delivered:     del,
+      rto:           rt,
+      in_transit:    tr,
+      rto_rate:      n > 0 ? parseFloat((rt/n*100).toFixed(2)) : 0,
+      delivery_rate: n > 0 ? parseFloat((del/n*100).toFixed(2)) : 0,
+    };
+  }).sort((a, b) => b.total_orders - a.total_orders);
 }
 
-function updateSKUPage() {
-  const d = DASH;
-  const sku = document.getElementById('sku-select').value;
-  const s = d.skus.find(x=>x.sku===sku);
-  if (!s) return;
+function renderSKUPage() {
+  const d   = DASH;
+  const ords = applyFilters('sku');
+  const skuStats = computeSkuStats(ords);
 
-  document.getElementById('sku-detail-name').textContent = s.name;
-  document.getElementById('sku-detail-code').textContent = s.sku;
-  document.getElementById('sm-total').textContent     = s.total_orders.toLocaleString('en-IN');
-  document.getElementById('sm-delivered').textContent = s.delivered.toLocaleString('en-IN');
-  document.getElementById('sm-rto').textContent       = s.rto.toLocaleString('en-IN');
-  document.getElementById('sm-rto-rate').textContent  = s.rto_rate+'%';
-  document.getElementById('sm-del-rate').textContent  = s.delivery_rate+'%';
-  document.getElementById('sm-qty').textContent       = s.item_qty.toLocaleString('en-IN');
+  // Populate dropdown — preserve current selection if still valid
+  const sel = document.getElementById('sku-select');
+  const prev = sel.value;
+  sel.innerHTML = skuStats.map(s =>
+    `<option value="${s.sku}">${s.sku} — ${s.name.substring(0,45)}</option>`
+  ).join('');
+  if (prev && skuStats.find(s => s.sku === prev)) sel.value = prev;
 
-  const months = ['January','February','March'];
-  const mVals  = months.map(m=>{
-    const key=`${sku}|${m}`;
-    return d.sku_month[key]||{total:0,rto:0,delivered:0,rto_rate:0};
-  });
-
-  // SKU Monthly — contextual: % of SKU total orders that month
-  mkChart('chart-sku-monthly',{type:'bar',
-    data:{labels:months,datasets:[
-      {label:'Delivered',data:mVals.map(v=>v.delivered),backgroundColor:DELIVERED_COLOR,borderRadius:4},
-      {label:'RTO',      data:mVals.map(v=>v.rto),      backgroundColor:RTO_COLOR,borderRadius:4},
-    ]},
-    options:{responsive:true,plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
-      const mTotal=mVals[ctx.dataIndex].total||1;
-      return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,mTotal)}% of ${fmtN(mTotal)} orders in ${months[ctx.dataIndex]})`;
-    }}}},
-      scales:{x:{grid:{display:false},ticks:{font:tickFont}},y:{grid:gridLines,ticks:{font:tickFont},border:{display:false}}}}
-  });
-
-  mkChart('chart-sku-status',{type:'doughnut',
-    data:{labels:['Delivered','RTO','In Transit','Other'],datasets:[{
-      data:[s.delivered,s.rto,s.in_transit,s.total_orders-s.delivered-s.rto-(s.in_transit||0)],
-      backgroundColor:[DELIVERED_COLOR,RTO_COLOR,TRANSIT_COLOR,'#9ca3af'],borderWidth:2,borderColor:'#fff'
+  // All SKUs RTO comparison — computed from filtered orders
+  const forChart = skuStats.filter(s => s.total_orders >= 50)
+                           .sort((a,b) => b.rto_rate - a.rto_rate)
+                           .slice(0, 30);
+  mkChart('chart-sku-rto-all', {type:'bar',
+    data:{labels:forChart.map(s=>s.sku), datasets:[{
+      label:'RTO Rate %',
+      data: forChart.map(s=>s.rto_rate),
+      backgroundColor: forChart.map(s=>s.rto_rate>=20?RTO_COLOR:s.rto_rate>=12?'#f59e0b':BLUES[2]),
+      borderRadius:4
     }]},
-    options:{responsive:true,cutout:'55%',plugins:{legend:{labels:{font:tickFont}},tooltip:{callbacks:{label:function(ctx){
-      return ` ${ctx.label}: ${fmtN(ctx.parsed)} (${pct(ctx.parsed,s.total_orders)}%)`;
-    }}}}}
+    options:{indexAxis:'y', responsive:true,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:function(ctx){
+        const sk = forChart[ctx.dataIndex];
+        return [` RTO Rate: ${ctx.parsed.x}%`, ` (${fmtN(sk.rto)} RTO of ${fmtN(sk.total_orders)})`];
+      }}}},
+      scales:{
+        x:{grid:gridLines, ticks:{font:tickFont,color:'#9ca3af',callback:v=>v+'%'}, border:{display:false}},
+        y:{grid:{display:false}, ticks:{font:{family:'DM Mono',size:10},color:'#6b7280'}}
+      }
+    }
+  });
+
+  updateSKUPage(skuStats, ords);
+}
+
+function updateSKUPage(skuStatsArg, ordsArg) {
+  // Accept pre-computed args from renderSKUPage, or recompute if called standalone
+  const ords      = ordsArg      || applyFilters('sku');
+  const skuStats  = skuStatsArg  || computeSkuStats(ords);
+
+  const sku = document.getElementById('sku-select').value;
+  const s   = skuStats.find(x => x.sku === sku);
+
+  // If no data for this SKU in current filter, show zeroes gracefully
+  const safeS = s || { name:'', sku, total_orders:0, delivered:0, rto:0, in_transit:0, rto_rate:0, delivery_rate:0, item_qty:0 };
+
+  document.getElementById('sku-detail-name').textContent = safeS.name || DASH.heatmap?.sku_names?.[sku] || sku;
+  document.getElementById('sku-detail-code').textContent = sku;
+  document.getElementById('sm-total').textContent     = safeS.total_orders.toLocaleString('en-IN');
+  document.getElementById('sm-delivered').textContent = safeS.delivered.toLocaleString('en-IN');
+  document.getElementById('sm-rto').textContent       = safeS.rto.toLocaleString('en-IN');
+  document.getElementById('sm-rto-rate').textContent  = safeS.rto_rate + '%';
+  document.getElementById('sm-del-rate').textContent  = safeS.delivery_rate + '%';
+  document.getElementById('sm-qty').textContent       = safeS.item_qty.toLocaleString('en-IN');
+
+  // Monthly breakdown — computed from live filtered orders for this SKU
+  const skuOrds = ords.filter(r => r.SKU === sku);
+  const months  = ['January','February','March'];
+  const mVals   = months.map(m => {
+    const mo = skuOrds.filter(r => r.Month === m);
+    const n  = mo.length;
+    return {
+      total:     n,
+      delivered: mo.filter(r => r.Status === 'Delivered').length,
+      rto:       mo.filter(r => r.Status === 'RTO').length,
+    };
+  });
+
+  mkChart('chart-sku-monthly', {type:'bar',
+    data:{labels:months, datasets:[
+      {label:'Delivered', data:mVals.map(v=>v.delivered), backgroundColor:DELIVERED_COLOR, borderRadius:4},
+      {label:'RTO',       data:mVals.map(v=>v.rto),       backgroundColor:RTO_COLOR,       borderRadius:4},
+    ]},
+    options:{responsive:true,
+      plugins:{legend:{labels:{font:tickFont}}, tooltip:{callbacks:{label:function(ctx){
+        const mTotal = mVals[ctx.dataIndex].total || 1;
+        return ` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)} (${pct(ctx.parsed.y,mTotal)}% of ${fmtN(mTotal)} in ${months[ctx.dataIndex]})`;
+      }}}},
+      scales:{x:{grid:{display:false},ticks:{font:tickFont}}, y:{grid:gridLines,ticks:{font:tickFont},border:{display:false}}}
+    }
+  });
+
+  const tot = safeS.total_orders;
+  const other = Math.max(0, tot - safeS.delivered - safeS.rto - (safeS.in_transit||0));
+  mkChart('chart-sku-status', {type:'doughnut',
+    data:{labels:['Delivered','RTO','In Transit','Other'], datasets:[{
+      data:[safeS.delivered, safeS.rto, safeS.in_transit, other],
+      backgroundColor:[DELIVERED_COLOR, RTO_COLOR, TRANSIT_COLOR, '#9ca3af'],
+      borderWidth:2, borderColor:'#fff'
+    }]},
+    options:{responsive:true, cutout:'55%',
+      plugins:{legend:{labels:{font:tickFont}}, tooltip:{callbacks:{label:function(ctx){
+        return ` ${ctx.label}: ${fmtN(ctx.parsed)} (${pct(ctx.parsed, tot||1)}%)`;
+      }}}}
+    }
   });
 }
 
@@ -1690,6 +1805,15 @@ function switchGeoTab(view, el) {
   el.classList.add('active');
   document.getElementById('geo-state-view').style.display = view==='state' ? '' : 'none';
   document.getElementById('geo-city-view').style.display  = view==='city'  ? '' : 'none';
+  document.getElementById('geo-map-view').style.display   = view==='map'   ? '' : 'none';
+  if (view === 'map') {
+    // Stop any old canvas animation
+    if (window.mapAnimFrame) { cancelAnimationFrame(window.mapAnimFrame); window.mapAnimFrame = null; }
+    setTimeout(initIndiaMap, 60);
+  } else {
+    // Stop pulse timer when leaving map
+    if (window._mapPulseTimer) { clearInterval(window._mapPulseTimer); window._mapPulseTimer = null; }
+  }
 }
 
 function renderGeo() {
@@ -1759,6 +1883,7 @@ function renderGeo() {
               y:{grid:{display:false},ticks:{font:{size:10},color:'#6b7280'}}}}
   });
 
+  if (document.getElementById('geo-map-view').style.display !== 'none') updateMapBubbles();
   document.getElementById('tbl-cities').innerHTML=`
     <thead><tr><th>#</th><th>City</th><th>Orders</th><th>% of Total</th><th>Delivered</th><th>RTO</th><th>RTO%</th><th>Revenue</th></tr></thead>
     <tbody>${filtCities.map((c,i)=>`<tr>
@@ -2345,6 +2470,436 @@ function processData(rows) {
     monthly,skus,states,cities,tiers,tier1cities,couriers,warehouses,order_statuses,sku_month,tier_month,daily,heatmap,
     _allOrders:orders
   };
+}
+
+
+// ================================================================
+//  INDIA MAP — ECharts Choropleth + Bubble Overlay
+// ================================================================
+
+// ── State name normalizer ─────────────────────────────────────────
+const STATE_ALIASES = {
+  'Himachal Pradesh ': 'Himachal Pradesh',
+  'Telangana ':        'Telangana',
+  'West Bengal ':      'West Bengal',
+  'jharkhand':         'Jharkhand',
+  'Dadra & Nagar Haveli and Daman & Diu': 'Dadra and Nagar Haveli and Daman and Diu',
+  'Andaman & Nicobar Islands': 'Andaman and Nicobar',
+  'Jammu & Kashmir':   'Jammu and Kashmir',
+};
+function normState(s) { return STATE_ALIASES[s] || s; }
+
+// ── Metric toggle state ───────────────────────────────────────────
+let mapMetric = 'rto'; // 'rto' | 'volume'
+let echartsInstance = null;
+let mapGeoLoaded = false;
+let mapGeoJSON = null;
+
+// ── Color scales ──────────────────────────────────────────────────
+const VOLUME_COLORS = ['#f0fdf4','#86efac','#22c55e','#15803d','#14532d'];
+const RTO_COLORS    = ['#fff7f7','#fca5a5','#ef4444','#b91c1c','#7f1d1d'];
+
+// ── Load ECharts from CDN if not already loaded ───────────────────
+function ensureECharts(cb) {
+  if (window.echarts) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js';
+  s.onload = cb;
+  s.onerror = () => {
+    document.getElementById('india-map-container').innerHTML =
+      '<div style="padding:40px;text-align:center;color:#6b7280;font-size:13px">'+
+      '⚠ Could not load map library (ECharts). Please check your internet connection.</div>';
+  };
+  document.head.appendChild(s);
+}
+
+// ── Load GeoJSON ──────────────────────────────────────────────────
+function loadIndiaGeoJSON(cb) {
+  if (mapGeoJSON) { cb(mapGeoJSON); return; }
+  // Try datameet first, fallback to another public mirror
+  const urls = [
+    'https://raw.githubusercontent.com/datameet/maps/master/States/india_states.geojson',
+    'https://raw.githubusercontent.com/geohacker/india/master/state/india_state.geojson',
+  ];
+  function tryNext(i) {
+    if (i >= urls.length) {
+      // Ultimate fallback: use embedded minimal GeoJSON
+      cb(INDIA_MINIMAL_GEO);
+      return;
+    }
+    fetch(urls[i])
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(geo => {
+        // Normalize property names — different sources use different keys
+        geo.features.forEach(f => {
+          const p = f.properties;
+          // Try common property keys for state name
+          const name = p.NAME_1 || p.ST_NM || p.name || p.NAME || p.state || '';
+          p._stateName = name;
+        });
+        mapGeoJSON = geo;
+        cb(geo);
+      })
+      .catch(() => tryNext(i + 1));
+  }
+  tryNext(0);
+}
+
+// ── Embedded minimal GeoJSON fallback ────────────────────────────
+// Compact but accurate enough for state-level choropleth
+// Each feature has correct centroid coordinates for bubble placement
+const INDIA_MINIMAL_GEO = (function() {
+  // Simplified state boundaries — enough for recognizable choropleth
+  // Format: [state_name, [[lon,lat], ...polygon points...]]
+  const states = [
+    ["Jammu and Kashmir",[[73.9,36.9],[75.4,37.1],[77.8,36.0],[79.1,34.5],[78.7,33.2],[77.0,32.5],[75.6,32.8],[74.5,33.9],[73.9,36.9]]],
+    ["Ladakh",[[76.7,35.7],[79.4,35.5],[80.5,34.6],[79.1,34.5],[77.8,36.0],[76.7,35.7]]],
+    ["Himachal Pradesh",[[75.6,32.8],[77.0,32.5],[78.7,33.2],[78.5,31.5],[77.0,30.5],[75.9,31.1],[75.6,32.8]]],
+    ["Punjab",[[73.9,31.5],[75.6,32.8],[75.9,31.1],[76.5,30.7],[75.1,29.9],[73.9,30.2],[73.9,31.5]]],
+    ["Haryana",[[75.1,29.9],[76.5,30.7],[77.4,30.9],[77.2,29.0],[76.3,28.4],[75.1,29.0],[75.1,29.9]]],
+    ["Delhi",[[76.8,28.9],[77.3,29.0],[77.5,28.4],[77.1,28.4],[76.8,28.9]]],
+    ["Rajasthan",[[69.5,24.0],[72.5,23.0],[74.0,24.7],[75.5,24.5],[77.2,26.0],[76.3,28.4],[77.2,29.0],[75.1,29.0],[73.9,30.2],[73.0,28.0],[70.4,26.5],[69.5,24.0]]],
+    ["Uttar Pradesh",[[77.2,29.0],[78.7,30.5],[80.5,29.5],[83.0,27.5],[84.5,27.0],[84.0,25.0],[82.0,25.0],[80.5,24.5],[78.5,26.5],[77.2,26.0],[76.3,28.4],[77.2,29.0]]],
+    ["Uttarakhand",[[77.4,30.9],[79.0,31.5],[80.5,29.5],[78.7,30.5],[77.4,30.9]]],
+    ["Bihar",[[84.0,25.0],[86.0,25.2],[88.0,25.5],[87.5,24.0],[85.5,23.5],[84.0,23.5],[83.5,24.5],[84.0,25.0]]],
+    ["Jharkhand",[[83.5,24.5],[84.0,23.5],[85.5,23.5],[87.5,24.0],[87.0,22.0],[85.5,21.0],[83.0,22.0],[82.5,23.5],[83.5,24.5]]],
+    ["West Bengal",[[87.5,24.0],[88.5,26.5],[89.9,26.9],[89.0,25.0],[88.0,25.5],[87.5,24.0]]],
+    ["Sikkim",[[88.0,28.0],[88.9,28.1],[88.9,27.0],[88.0,27.0],[88.0,28.0]]],
+    ["Assam",[[89.9,26.9],[91.5,27.5],[94.5,27.0],[95.5,26.0],[93.0,24.5],[91.5,24.5],[89.0,25.0],[89.9,26.9]]],
+    ["Arunachal Pradesh",[[91.5,27.5],[96.0,29.5],[97.4,28.0],[94.5,27.0],[91.5,27.5]]],
+    ["Nagaland",[[93.0,26.5],[95.5,27.5],[96.0,26.0],[93.8,25.5],[93.0,26.5]]],
+    ["Manipur",[[93.8,25.5],[94.8,25.0],[94.5,23.5],[93.0,23.5],[93.0,25.0],[93.8,25.5]]],
+    ["Mizoram",[[92.3,24.5],[93.5,24.5],[93.5,22.0],[92.3,22.0],[92.3,24.5]]],
+    ["Tripura",[[91.2,24.5],[92.3,24.5],[92.3,22.5],[91.2,22.5],[91.2,24.5]]],
+    ["Meghalaya",[[89.0,25.0],[91.5,25.5],[92.5,25.0],[91.5,24.5],[89.0,24.5],[89.0,25.0]]],
+    ["Odisha",[[82.0,22.0],[85.5,23.5],[87.0,22.0],[87.0,20.5],[85.5,19.0],[83.5,18.0],[82.0,19.5],[82.0,22.0]]],
+    ["Chhattisgarh",[[80.5,24.5],[82.0,24.5],[83.0,22.0],[82.5,20.5],[80.5,21.0],[79.0,21.0],[79.0,23.0],[80.5,24.5]]],
+    ["Madhya Pradesh",[[74.5,24.0],[76.3,26.5],[78.5,26.5],[80.5,24.5],[79.0,23.0],[79.0,21.0],[76.0,21.5],[74.0,22.0],[74.5,24.0]]],
+    ["Gujarat",[[68.2,23.5],[70.5,24.0],[72.5,25.5],[73.9,24.5],[72.0,22.5],[73.0,20.5],[72.5,20.0],[70.0,20.5],[68.5,21.5],[68.2,23.5]]],
+    ["Maharashtra",[[74.0,22.0],[76.0,21.5],[79.0,21.0],[80.5,21.0],[80.0,18.0],[78.0,18.0],[76.5,17.5],[74.5,17.0],[73.0,17.5],[72.5,20.0],[73.0,20.5],[74.0,22.0]]],
+    ["Goa",[[73.7,15.8],[74.3,15.5],[74.2,14.9],[73.6,14.9],[73.7,15.8]]],
+    ["Karnataka",[[74.5,17.0],[76.5,17.5],[78.0,18.0],[78.5,15.0],[77.5,13.0],[76.0,12.0],[74.5,12.5],[74.0,14.0],[74.5,17.0]]],
+    ["Andhra Pradesh",[[79.0,21.0],[80.5,21.0],[82.0,19.5],[82.0,18.0],[80.0,18.0],[78.5,15.0],[78.0,18.0],[79.0,21.0]]],
+    ["Telangana",[[78.0,18.0],[80.0,18.0],[82.0,18.0],[80.5,18.0],[80.5,21.0],[79.0,21.0],[79.0,17.5],[78.0,17.5],[78.0,18.0]]],
+    ["Tamil Nadu",[[77.5,13.0],[78.5,15.0],[80.3,13.5],[80.3,12.0],[79.9,10.0],[78.2,8.5],[77.5,8.5],[77.0,10.0],[77.5,13.0]]],
+    ["Kerala",[[76.0,12.0],[77.5,13.0],[77.0,10.0],[77.5,8.5],[76.8,8.3],[76.0,10.0],[76.0,12.0]]],
+    ["Puducherry",[[79.7,12.0],[80.0,12.0],[80.0,11.7],[79.7,11.7],[79.7,12.0]]],
+    ["Andaman and Nicobar",[[92.0,13.5],[93.0,13.5],[93.0,10.0],[92.0,10.0],[92.0,13.5]]],
+    ["Chandigarh",[[76.7,30.8],[76.9,30.8],[76.9,30.6],[76.7,30.6],[76.7,30.8]]],
+    ["Dadra and Nagar Haveli and Daman and Diu",[[72.8,20.5],[73.1,20.5],[73.1,20.1],[72.8,20.1],[72.8,20.5]]],
+    ["Sikkim",[[88.2,27.8],[88.9,28.1],[88.9,27.1],[88.2,27.1],[88.2,27.8]]],
+  ];
+
+  return {
+    type: 'FeatureCollection',
+    features: states.map(([name, coords]) => ({
+      type: 'Feature',
+      properties: { _stateName: name },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [coords]
+      }
+    }))
+  };
+})();
+
+// ── State name matcher — fuzzy match dataset name to GeoJSON name ─
+function matchToGeoName(datasetName, geoNames) {
+  const n = normState(datasetName).toLowerCase().trim();
+  // Exact match first
+  const exact = geoNames.find(g => g.toLowerCase().trim() === n);
+  if (exact) return exact;
+  // Partial match
+  const partial = geoNames.find(g => {
+    const gl = g.toLowerCase().trim();
+    return gl.includes(n) || n.includes(gl);
+  });
+  return partial || null;
+}
+
+// ── Main render entry point ───────────────────────────────────────
+function initIndiaMap() {
+  const container = document.getElementById('india-map-container');
+  if (!container) return;
+  // Show loading state
+  container.innerHTML = '<div style="height:520px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;flex-direction:column;gap:10px"><div style="width:32px;height:32px;border:2px solid #e2e5ea;border-top-color:#1a56db;border-radius:50%;animation:_spin 0.8s linear infinite"></div>Loading map…</div>';
+
+  ensureECharts(() => {
+    loadIndiaGeoJSON(geo => {
+      mapGeoJSON = geo;
+      mapGeoLoaded = true;
+      echarts.registerMap('india', geo);
+      renderEChartsMap();
+    });
+  });
+}
+
+function renderEChartsMap() {
+  if (!mapGeoLoaded || !window.echarts) return;
+  const container = document.getElementById('india-map-container');
+  if (!container) return;
+
+  // Compute data
+  const ords = applyFilters('geo');
+  const grandTotal = ords.length;
+  const stGrp = groupBy(ords, 'Shipping State');
+
+  // Build per-state stats
+  const stateStats = {};
+  let maxVol = 0, maxRTO = 0;
+  for (const [rawName, orders] of Object.entries(stGrp)) {
+    const name = normState(rawName);
+    if (!stateStats[name]) stateStats[name] = { total:0, rto:0, del:0 };
+    const s = stateStats[name];
+    s.total  += orders.length;
+    s.rto    += orders.filter(r => r.Status === 'RTO').length;
+    s.del    += orders.filter(r => r.Status === 'Delivered').length;
+  }
+  for (const s of Object.values(stateStats)) {
+    s.rto_rate  = s.total > 0 ? +(s.rto  / s.total * 100).toFixed(2) : 0;
+    s.vol_pct   = grandTotal > 0 ? +(s.total / grandTotal * 100).toFixed(2) : 0;
+    maxVol = Math.max(maxVol, s.vol_pct);
+    maxRTO = Math.max(maxRTO, s.rto_rate);
+  }
+
+  // Get GeoJSON feature names
+  const geoNames = mapGeoJSON.features.map(f => f.properties._stateName).filter(Boolean);
+
+  // Build choropleth data
+  const choroplethData = geoNames.map(geoName => {
+    // Find matching dataset name
+    const matched = Object.entries(stateStats).find(([k]) =>
+      matchToGeoName(k, [geoName]) === geoName || geoName === normState(k)
+    );
+    if (!matched) return { name: geoName, value: 0, _hasData: false };
+    const [, stats] = matched;
+    const val = mapMetric === 'rto' ? stats.rto_rate : stats.vol_pct;
+    return { name: geoName, value: +val.toFixed(2), ...stats, _hasData: true };
+  });
+
+  // Build bubble data — top 15 states by order volume
+  const topStates = Object.entries(stateStats)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 15);
+
+  // Compute geo centroids from GeoJSON for bubble placement
+  function centroid(feature) {
+    const coords = feature.geometry.type === 'Polygon'
+      ? feature.geometry.coordinates[0]
+      : feature.geometry.coordinates[0][0]; // MultiPolygon
+    const n = coords.length;
+    const lon = coords.reduce((s, c) => s + c[0], 0) / n;
+    const lat = coords.reduce((s, c) => s + c[1], 0) / n;
+    return [lon, lat];
+  }
+
+  const featureMap = {};
+  mapGeoJSON.features.forEach(f => {
+    if (f.properties._stateName) featureMap[f.properties._stateName] = f;
+  });
+
+  const rtoData   = [], volData = [];
+  topStates.forEach(([rawName, stats]) => {
+    const geoName = geoNames.find(g => normState(rawName) === g || g.toLowerCase().includes(normState(rawName).toLowerCase().slice(0,8)));
+    const feat = geoName ? featureMap[geoName] : null;
+    if (!feat) return;
+    const [lon, lat] = centroid(feat);
+    const tooltip = `${rawName}\nOrders: ${stats.total.toLocaleString('en-IN')} (${stats.vol_pct}%)\nRTO: ${stats.rto_rate}%`;
+    rtoData.push({ name: rawName, value: [lon, lat, stats.rto_rate], volPct: stats.vol_pct, total: stats.total, rtoRate: stats.rto_rate });
+    volData.push({ name: rawName, value: [lon, lat, stats.vol_pct],  volPct: stats.vol_pct, total: stats.total, rtoRate: stats.rto_rate });
+  });
+
+  // Destroy previous instance if exists
+  if (echartsInstance) { echartsInstance.dispose(); echartsInstance = null; }
+  container.innerHTML = '';
+  container.style.height = '540px';
+
+  echartsInstance = echarts.init(container, null, { renderer: 'canvas' });
+
+  const isRTO = mapMetric === 'rto';
+  const maxVal = isRTO ? maxRTO : maxVol;
+  const colorRange = isRTO ? ['#fff5f5','#feb2b2','#fc8181','#f56565','#e53e3e','#c53030','#9b2c2c'] : ['#f0fff4','#c6f6d5','#9ae6b4','#68d391','#48bb78','#38a169','#276749'];
+  const metricLabel = isRTO ? 'RTO Rate %' : 'Order Volume %';
+
+  const option = {
+    backgroundColor: '#f8fafc',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(22,28,40,0.96)',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      padding: [10, 14],
+      textStyle: { color: '#fff', fontSize: 12, fontFamily: 'DM Sans, sans-serif' },
+      formatter: function(params) {
+        if (!params.data || !params.data._hasData) {
+          return `<div style="font-weight:600;margin-bottom:4px">${params.name || params.data?.name}</div><div style="color:rgba(255,255,255,0.5);font-size:11px">No orders in this period</div>`;
+        }
+        const d = params.data;
+        const total = d.total || 0;
+        const volP  = d.vol_pct || d.volPct || 0;
+        const rtoR  = d.rto_rate || d.rtoRate || 0;
+        const del   = d.del || 0;
+        return `<div style="font-weight:600;font-size:13px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:6px">${d.name || params.name}</div>
+<div style="display:grid;grid-template-columns:auto auto;gap:3px 14px;font-size:11.5px">
+  <span style="color:rgba(255,255,255,0.55)">Orders</span><span style="color:#93c5fd;font-weight:600">${total.toLocaleString('en-IN')}</span>
+  <span style="color:rgba(255,255,255,0.55)">Volume Share</span><span style="color:#6ee7b7;font-weight:600">${+volP.toFixed(1)}%</span>
+  <span style="color:rgba(255,255,255,0.55)">Delivered</span><span style="color:#86efac;font-weight:600">${(del||0).toLocaleString('en-IN')}</span>
+  <span style="color:rgba(255,255,255,0.55)">RTO Rate</span><span style="color:#fca5a5;font-weight:600">${+rtoR.toFixed(1)}%</span>
+</div>`;
+      }
+    },
+    visualMap: {
+      min: 0,
+      max: +maxVal.toFixed(1),
+      text: [maxVal.toFixed(1)+'%', '0%'],
+      realtime: false,
+      calculable: true,
+      inRange: { color: colorRange },
+      textStyle: { color: '#6b7280', fontFamily: 'DM Sans, sans-serif', fontSize: 11 },
+      left: 12,
+      bottom: 30,
+      itemWidth: 14,
+      itemHeight: 90,
+    },
+    series: [
+      // ── Choropleth layer ──
+      {
+        name: metricLabel,
+        type: 'map',
+        map: 'india',
+        roam: true,
+        emphasis: {
+          label: { show: true, color: '#1e293b', fontFamily: 'DM Sans, sans-serif', fontSize: 11, fontWeight: 600 },
+          itemStyle: { areaColor: '#bfdbfe', shadowBlur: 10, shadowColor: 'rgba(59,130,246,0.3)' }
+        },
+        select: { disabled: true },
+        itemStyle: {
+          areaColor: '#f1f5f9',
+          borderColor: '#cbd5e1',
+          borderWidth: 0.8,
+        },
+        label: {
+          show: false,
+          color: '#475569',
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: 9,
+        },
+        data: choroplethData,
+      },
+      // ── Volume bubbles (green) — top 15 states ──
+      {
+        name: 'Order Volume',
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        data: volData.map(d => ({
+          ...d,
+          symbolSize: Math.max(10, Math.min(52, 10 + (d.value[2] / maxVol) * 42)),
+          itemStyle: {
+            color: 'rgba(34,197,94,0.75)',
+            borderColor: 'rgba(22,163,74,0.9)',
+            borderWidth: 1.5,
+            shadowBlur: 6,
+            shadowColor: 'rgba(22,163,74,0.3)',
+          }
+        })),
+        encode: { value: 2 },
+        label: { show: false },
+        zlevel: 2,
+      },
+      // ── RTO bubbles (red) — top 15 states ──
+      {
+        name: 'RTO Rate',
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        data: rtoData.map(d => ({
+          ...d,
+          symbolSize: Math.max(8, Math.min(44, 8 + (d.value[2] / maxRTO) * 36)),
+          itemStyle: {
+            color: 'rgba(239,68,68,0.70)',
+            borderColor: 'rgba(185,28,28,0.9)',
+            borderWidth: 1.5,
+            shadowBlur: 6,
+            shadowColor: 'rgba(215,58,58,0.3)',
+          }
+        })),
+        encode: { value: 2 },
+        label: { show: false },
+        zlevel: 3,
+      },
+    ],
+    geo: {
+      map: 'india',
+      roam: true,
+      center: [82.8, 22.5],
+      zoom: 1.15,
+      itemStyle: { borderColor: 'transparent' },
+      emphasis: { itemStyle: { borderColor: 'transparent' } },
+      silent: true,
+      // hidden underlay for scatter coordinate system
+    },
+    legend: {
+      data: ['Order Volume','RTO Rate'],
+      bottom: 10,
+      right: 16,
+      orient: 'horizontal',
+      textStyle: { color: '#6b7280', fontSize: 11, fontFamily: 'DM Sans, sans-serif' },
+      itemWidth: 12, itemHeight: 12,
+      formatter: name => name === 'Order Volume' ? '🟢 ' + name + ' %' : '🔴 ' + name + ' %',
+    },
+  };
+
+  echartsInstance.setOption(option);
+
+  // ── Subtle opacity pulse animation ───────────────────────────────
+  let pulseDir = 1, pulseVal = 0.75, pulseTimer = null;
+  clearInterval(pulseTimer);
+  pulseTimer = setInterval(() => {
+    if (!echartsInstance) { clearInterval(pulseTimer); return; }
+    // Check if map is still visible (avoid updates when hidden)
+    const container = document.getElementById('india-map-container');
+    if (!container || container.closest('#geo-map-view')?.style.display === 'none') return;
+    pulseVal += pulseDir * 0.04;
+    if (pulseVal >= 0.9) pulseDir = -1;
+    if (pulseVal <= 0.55) pulseDir = 1;
+    echartsInstance.setOption({
+      series: [
+        { name:'Order Volume', data: volData.map(d => ({
+            ...d,
+            symbolSize: Math.max(10, Math.min(52, 10 + (d.value[2]/maxVol)*42)),
+            itemStyle: { color: `rgba(34,197,94,${pulseVal})`, borderColor:'rgba(22,163,74,0.9)', borderWidth:1.5, shadowBlur:6, shadowColor:'rgba(22,163,74,0.3)' }
+          }))
+        },
+        { name:'RTO Rate', data: rtoData.map(d => ({
+            ...d,
+            symbolSize: Math.max(8, Math.min(44, 8 + (d.value[2]/maxRTO)*36)),
+            itemStyle: { color: `rgba(239,68,68,${pulseVal - 0.05})`, borderColor:'rgba(185,28,28,0.9)', borderWidth:1.5, shadowBlur:6, shadowColor:'rgba(215,58,58,0.3)' }
+          }))
+        }
+      ]
+    }, false); // false = merge, no full re-render
+  }, 80);
+
+  // Store ref for cleanup
+  window._mapPulseTimer = pulseTimer;
+
+  // Resize observer
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => {
+      if (echartsInstance) echartsInstance.resize();
+    });
+    ro.observe(container);
+  }
+}
+
+function setMapMetric(metric, btn) {
+  mapMetric = metric;
+  document.querySelectorAll('.map-metric-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEChartsMap();
+}
+
+function updateMapBubbles() {
+  if (mapGeoLoaded) renderEChartsMap();
 }
 
 // ================================================================
