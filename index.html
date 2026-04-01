@@ -1255,8 +1255,9 @@ let chartInstances = {};
 let monthFilters = { overview:'All', geo:'All', tier:'All', courier:'All', warehouse:'All', rto:'All', trends:'All', sku:'All', order_status:'All' };
 let heatmapMonth = 'All';
 let dateFilters = {}; // { pageId: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } }
-const DATE_MIN = '2026-01-01';
-const DATE_MAX = '2026-03-18';
+// DATE_MIN / DATE_MAX are set dynamically from the loaded data in initDateBounds()
+let DATE_MIN = '2026-01-01';
+let DATE_MAX = '2026-03-18';
 
 // ================================================================
 //  NAVIGATION
@@ -1456,11 +1457,37 @@ function summarizeOrders(arr) {
   };
 }
 
+
+// ================================================================
+//  DATE BOUNDS — derive from data, called after DASH is set
+// ================================================================
+function initDateBounds() {
+  if (!DASH || !DASH.daily) return;
+
+  const dates = Object.keys(DASH.daily).sort();
+  if (!dates.length) return;
+
+  DATE_MIN = dates[0];
+  DATE_MAX = dates[dates.length - 1];
+
+  // Update every date input in the page
+  document.querySelectorAll('.df-input').forEach(el => {
+    if (el.id.startsWith('df-from-')) el.value = DATE_MIN;
+    if (el.id.startsWith('df-to-'))   el.value = DATE_MAX;
+  });
+
+  // Ensure all "All dates" labels are correct
+  document.querySelectorAll('[id^="df-active-"]').forEach(el => {
+    el.textContent = 'All dates';
+  });
+}
+
 // ================================================================
 //  RENDER ALL
 // ================================================================
 function renderAll() {
   if (!DASH) return;
+  initDateBounds();
   renderOverview();
   renderTrends();
   renderSKUPage();
